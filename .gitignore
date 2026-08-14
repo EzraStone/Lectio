@@ -1,0 +1,25 @@
+# Build output
+/bin/
+/dist/
+lectio
+
+# Index / state databases produced at runtime
+*.lectio.db
+*.lectio.db-shm
+*.lectio.db-wal
+.lectio/
+
+# Go test and profiling artifacts
+*.out
+*.test
+coverage.txt
+
+# Backtest working directories and reports
+/corpus/
+/backtest-out/
+
+# Editor noise
+.idea/
+.vscode/
+*.swp
+.DS_Store
