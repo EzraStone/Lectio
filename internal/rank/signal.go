@@ -67,6 +67,11 @@ type Params struct {
 
 	// ChurnWindow bounds the history signals. Twelve months is the spec's.
 	ChurnWindow time.Duration
+
+	// Familiarity discounts symbols the user has already demonstrated they
+	// understand. Optional: an empty map means every symbol is treated as
+	// unread, which is the right assumption on day one.
+	Familiarity map[core.SymbolID]float64
 }
 
 // DefaultParams returns the settings a plain ranking run uses.
