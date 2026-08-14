@@ -407,3 +407,48 @@ func TestDegradedErrorReportsTheNumbers(t *testing.T) {
 		}
 	}
 }
+
+// Two runs are only comparable when they measured the same cases. Which cases
+// survive depends on whether each rewound revision's dependencies resolved,
+// which depends on the module cache and the network — the same command scored
+// 85 cases one day and 77 the next, every per-case score identical and the
+// totals half a point apart. A report that hides that looks reproducible and
+// is not.
+func TestCaseSetFingerprintTracksWhichCasesWereScored(t *testing.T) {
+	mk := func(repo, rev, who string) CaseResult {
+		return CaseResult{
+			Case:   Case{Repo: repo, RewindTo: rev, Contributor: who},
+			Scores: []Score{{Strategy: "lectio", Precision: 0.5}},
+		}
+	}
+	a := mk("r", "aaa", "x")
+	b := mk("r", "bbb", "y")
+	c := mk("r", "ccc", "z")
+
+	full := Summarize([]CaseResult{a, b, c}, 10)
+	if full.CaseSet == "" {
+		t.Fatal("no fingerprint produced")
+	}
+
+	// Order must not matter: cases arrive in filesystem order, which says
+	// nothing about the population.
+	if got := Summarize([]CaseResult{c, a, b}, 10); got.CaseSet != full.CaseSet {
+		t.Errorf("fingerprint moved with case order: %s vs %s", got.CaseSet, full.CaseSet)
+	}
+
+	// Losing one case to a failed dependency resolution must change it.
+	dropped := Summarize([]CaseResult{a, b, {Case: c.Case, Err: &DegradedError{}}}, 10)
+	if dropped.CaseSet == full.CaseSet {
+		t.Error("fingerprint unchanged after a case was discarded — two different populations share an identity")
+	}
+	if dropped.Cases != 2 {
+		t.Errorf("Cases = %d, want 2", dropped.Cases)
+	}
+}
+
+func TestCaseSetFingerprintIsEmptyWhenNothingScored(t *testing.T) {
+	rep := Summarize([]CaseResult{{Err: &DegradedError{}}}, 10)
+	if rep.CaseSet != "" {
+		t.Errorf("CaseSet = %q on a run that scored nothing", rep.CaseSet)
+	}
+}

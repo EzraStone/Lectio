@@ -2,11 +2,13 @@ package backtest
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -391,6 +393,19 @@ type Report struct {
 	// up from them rather than passed in, so the report cannot claim a rule
 	// the run did not use.
 	Collapse Collapse
+	// CaseSet fingerprints exactly which cases were scored.
+	//
+	// Two runs of this harness are only comparable when this matches. Which
+	// cases survive depends on whether each rewound revision's dependencies
+	// resolved, which depends on what is in the module cache and on the
+	// network — so the same command on the same corpus can score 85 cases one
+	// day and 77 the next, with every per-case score identical and the totals
+	// half a point apart.
+	//
+	// The alternative to printing this is a report that looks reproducible and
+	// is not, which is worse than one that admits when two numbers were
+	// computed over different populations.
+	CaseSet string
 	// Verdict states whether Gate A passed and why.
 	Verdict Verdict
 }
@@ -467,6 +482,8 @@ func Summarize(results []CaseResult, k int) Report {
 		}
 	}
 
+	rep.CaseSet = fingerprint(results)
+
 	for _, name := range order {
 		rep.Aggregates = append(rep.Aggregates, Mean(name, precisions[name], recalls[name], mrrs[name]))
 		rep.Medians[name] = Median(precisions[name])
@@ -499,6 +516,33 @@ func Summarize(results []CaseResult, k int) Report {
 type stratumKey struct {
 	strategy string
 	stratum  int
+}
+
+// fingerprint identifies the set of cases that were actually scored.
+//
+// Sorted before hashing, because the order cases arrive in depends on
+// filesystem iteration and says nothing about which population was measured.
+// Only scored cases count: a case that was discarded contributed nothing to
+// any number in the report.
+func fingerprint(results []CaseResult) string {
+	ids := make([]string, 0, len(results))
+	for _, r := range results {
+		if r.Err != nil {
+			continue
+		}
+		ids = append(ids, r.Case.Repo+"@"+r.Case.RewindTo+"/"+r.Case.Contributor)
+	}
+	if len(ids) == 0 {
+		return ""
+	}
+	sort.Strings(ids)
+
+	h := sha256.New()
+	for _, id := range ids {
+		_, _ = h.Write([]byte(id))
+		_, _ = h.Write([]byte{0})
+	}
+	return fmt.Sprintf("%x", h.Sum(nil))[:12]
 }
 
 // decide applies the gate: beat all four baselines on mean precision@K.

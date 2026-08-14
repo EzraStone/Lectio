@@ -182,6 +182,12 @@ func renderReport(env *Env, r backtest.Report) {
 		// quoted without it cannot be reproduced or compared to another run.
 		env.out("%s", env.dim(fmt.Sprintf("  symbol scores collapsed to files by %s", r.Collapse)))
 	}
+	if r.CaseSet != "" {
+		// Two runs are only comparable when this matches. Which cases survive
+		// depends on whether each revision's dependencies resolved, so the same
+		// command can measure a different population on a different day.
+		env.out("%s", env.dim(fmt.Sprintf("  case set %s", r.CaseSet)))
+	}
 	if r.Degraded > 0 {
 		env.out("%s", env.warn(fmt.Sprintf(
 			"  %d of those were discarded for a thin index — their revisions did not type-check", r.Degraded)))

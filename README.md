@@ -10,9 +10,10 @@ Three different signals lead those reasons: hidden coupling, orphaning,
 centrality. A list where every row said the same thing would mean six of the
 seven signals were decoration.
 
-> **Status: Gate A run, and failed.** Across 30 pinned repositories and 85
-> scored cases, lectio beat three of four baselines and lost to *largest files*
-> — 43.2% against 48.1% precision@10. Full result and reading:
+> **Status: Gate A failed, four ways.** Across 30 pinned repositories, lectio
+> lost to *largest files* — and once file size is held constant the two are the
+> same strategy. Hidden coupling, the differentiator, measures a lift of 1.02
+> over 2,311 newcomer corrective commits: no relationship. Full result:
 > [docs/gate-a-2026-08.md](docs/gate-a-2026-08.md). See
 > [Where this stands](#where-this-stands).
 
@@ -115,15 +116,25 @@ argued with — which is the only way to answer whether it is any good.
 | AI density | git-ai notes and assistant trailers | Code that may never have been understood |
 | Task proximity | Graph distance from a named area | Optional, user-supplied scope |
 
-**Hidden coupling is the differentiator.** Centrality and churn are computable
-by anyone and roughly match intuition. Co-change without a static dependency
-surfaces what a senior engineer knows and cannot articulate: touch the
-serializer, update the mobile schema.
+**Hidden coupling was the differentiator, and it did not survive contact with
+the corpus.** The claim: centrality and churn are computable by anyone, while
+co-change without a static dependency surfaces what a senior engineer knows and
+cannot articulate — touch the serializer, update the mobile schema.
 
-Two guards carry most of its quality. Commits touching more than twenty files
-are ignored — a reformat generates pairs quadratically while ordinary commits
-generate a few. Strength is the Jaccard index, not a raw count, so a file that
-changes constantly does not look coupled to everything it overlaps.
+Measured directly, it finds 1,554 such pairs across 29 repositories and they
+have **no relationship to where newcomers go wrong**: a lift of 1.02 over 2,311
+corrective commits, against those same newcomers' base rate.
+
+```sh
+lectio backtest --coupling ~/src/*/     # the test that produced that number
+```
+
+The two guards work as designed. Commits touching more than twenty files are
+ignored — a reformat generates pairs quadratically while ordinary commits
+generate a few — and strength is the Jaccard index rather than a raw count, so
+a file that changes constantly does not look coupled to everything it overlaps.
+The pairs are real. What is missing is the connection between them and anything
+a newcomer needed.
 
 `--explain` opens up the arithmetic, which is the point of keeping the signals
 separable — you cannot argue with a number you cannot decompose:
@@ -167,44 +178,58 @@ defect in this tool, in those words.
 
 ## Where this stands
 
-Phases 0 through 3 are built. Gate A runs but has not been run at scale.
-
-Gate A has been run at scale and **failed**. 30 pinned repositories, 114 cases
-attempted, 85 scored, run twice with identical numbers:
+Phases 0 through 3 are built. Gate A has been run at scale four times and
+**failed every time**. 30 pinned repositories, 114 cases attempted, 85 scored,
+every run reproducing to one decimal place.
 
 | Strategy | precision@10 |
 | --- | --- |
 | largest files | **48.1%** |
-| lectio | 43.2% |
+| size-proportional draw *(control)* | 44.1% |
+| lectio | 41.9% |
 | most churned, 12mo | 41.5% |
 | most distinct authors | 41.1% |
 | most recently modified | 40.2% |
 
+A random draw weighted by file size outscores the seven-signal ranking. It is a
+control rather than a baseline and does not decide the gate, but it is the most
+informative row in the table.
+
 ![Gate A across 30 repositories: 85 cases scored, 29 discarded. Lectio reaches 43.2 percent precision at 10 against largest files at 48.1 percent, the verdict reads FAIL, and a contribution table shows centrality worth +5.2 points while hidden coupling is -0.8.](docs/images/backtest.png)
 
-The gate requires beating all four. Lectio beat three and lost to *largest
-files*. Ablation says only centrality earns its place (+5.2 pp); the
-differentiator, hidden coupling, moves precision by −0.8 pp — not harmful at
-that size, but not the effect the spec predicted either.
+The first run at scale left two readings open — the ranking is not good enough,
+or the metric rewards size and a size baseline wins by construction. Three more
+runs closed that fork, and not in the ranking's favour.
 
-**The most informative result is which baseline won.** The best predictor of
-what a newcomer touched in their first ninety days is how big the file is —
-which is the spec's second named failure mode arriving on schedule: the
-backtest measures what people *touched*, standing in for what they needed to
-*understand*. A newcomer touches big files because that is where the code is.
+**The harness had a size bias of its own.** The backtest ranks symbols and
+scores files, and the rule bridging them took each file at its best symbol — so
+a file with sixty symbols got sixty chances to place high. Removing it cost
+lectio 1.3 points. The bias had been helping lectio, which was quietly
+borrowing from the baseline it lost to.
 
-So the data supports two readings — the ranking is not good enough, or the
-metric rewards size and a size baseline wins by construction — and choosing
-between them is the next piece of work. It cannot be done by tuning weights:
-fitting to a metric that rewards size produces a tool that recommends big
-files, which is the failure it exists to prevent. The spec's own suggested
-tiebreaker is a different target variable, not a different weighting — score
-against the files where newcomers' early commits got reverted or fixed.
+**Size-stratified precision found no artifact.** Splitting the same cases into
+size quartiles, lectio wins no band. In the two bands where size is genuinely
+controlled the gap is 0.2 and 0.3 points — so the ranking is not making worse
+choices than a size heuristic, it is making the *same* ones.
 
-The weights are unchanged from before the run.
+**The spec's own tiebreaker fails harder.** Scored against the files newcomers
+had to fix or revert rather than the ones they touched, lectio drops to 28.5%
+and loses to three baselines instead of one.
 
-Running Gate A properly is the next thing that matters. Nothing below it should
-be built until it returns a number.
+**And the differentiator is null.** Hidden coupling, tested directly rather than
+through precision@10: lift 1.02 across 2,311 newcomer corrective commits. The
+signal finds 1,554 real pairs; corrective work does not concentrate on them.
+
+The weights are unchanged from before all four runs, and should stay that way.
+Every strategy that beat lectio beat it by being more size-correlated, so
+fitting to this metric produces a tool that recommends big files — the failure
+it exists to prevent.
+
+Gate A is a hard stop and it has now been answered. Nothing below it should be
+built on this ranking. What would change the answer is in
+[the write-up](docs/gate-a-2026-08.md#what-this-means); the short version is
+that grading at symbol granularity rather than file paths is the one remaining
+explanation under which the ranking is better than it measures.
 
 ```sh
 make corpus     # clone the thirty pinned repositories (slow, once)
