@@ -4,25 +4,19 @@
 tells you what to read, in what order, and why — and later, where your
 understanding is actually thin.
 
-```
-$ lectio index ~/src/service
-$ lectio path --task billing ~/src/service
+![A reading path for go-git: six ranked symbols under a START HERE heading, each with its file, line, and a one-line reason. The reasons cite hidden coupling, orphaning, and caller counts.](docs/images/path.png)
 
-Reading path · 10 of 1,412 symbols · scoped to package acme/internal/billing
-
-START HERE
-   1. billing.Cycle
-      internal/billing/cycle.go:42
-      changes with mobile/schema.json in 9 commits, and neither one imports the other
-
-   2. core.parseInterval
-      internal/core/interval.go:31
-      7 callers call it directly, 24 within three hops
-```
+Three different signals lead those reasons: hidden coupling, orphaning,
+centrality. A list where every row said the same thing would mean six of the
+seven signals were decoration.
 
 > **Status: unvalidated.** Gate A has not been run at scale. Every claim about
 > ranking quality in this repository is a hypothesis until the backtest returns
 > a number across roughly thirty repositories. See [Where this stands](#where-this-stands).
+
+> Every screenshot below is a real run, captured from a terminal — against
+> [go-git](https://github.com/go-git/go-git) (7,775 symbols, 36,615 call edges)
+> unless noted. None of them are mockups, including the one that says FAIL.
 
 ## The one load-bearing rule
 
@@ -42,6 +36,13 @@ a *possible* caller is still a reason to read something. `View.StaticCalls`
 holds only edges the type checker proved and drives grading, so nobody is ever
 marked wrong for failing to name a call no execution reaches.
 
+You can read the same ground truth the grader does, and disagree with it:
+
+![lectio deps for OpenFileIndex: one production dependent one hop away, then 27 tests summarized across 5 files, and a footer stating the answer used static call edges only.](docs/images/deps.png)
+
+The footer states its provenance, because a grader that cannot say why it
+marked something wrong is one nobody will believe twice.
+
 ## What it is not
 
 Not a metric product. A comprehension score exists internally to order the
@@ -56,6 +57,17 @@ go install github.com/EzraStone/Lectio/cmd/lectio@latest
 
 Requires Go 1.24+ and `git` on PATH. The binary is static — the SQLite driver
 is pure Go, so there is no cgo and nothing to link.
+
+```sh
+cd ~/src/some-go-repo
+lectio index .        # analyze; writes .lectio/index.db
+lectio path .         # what to read, in what order, and why
+```
+
+Build `lectio` with a Go release at least as new as the repository you point it
+at. The type checker is compiled in, so an older binary cannot type-check a
+newer language version — it will index anyway, warn that packages failed, and
+produce a call graph missing everything in them.
 
 ## Commands
 
@@ -107,6 +119,11 @@ are ignored — a reformat generates pairs quadratically while ordinary commits
 generate a few. Strength is the Jaccard index, not a raw count, so a file that
 changes constantly does not look coupled to everything it overlaps.
 
+`--explain` opens up the arithmetic, which is the point of keeping the signals
+separable — you cannot argue with a number you cannot decompose:
+
+![lectio path --explain: each ranked symbol followed by its per-signal contributions, such as centrality 0.76, churn 0.02, hidden_coupling 0.99, fix_density 0.75, orphaning 0.86.](docs/images/explain.png)
+
 ### Ordering is not ranking
 
 Relevance decides *what* is on the list. Dependency depth decides *the order
@@ -128,6 +145,11 @@ Three types, all gradable without a judge.
   inverted mental model, which is what produces bad architecture decisions
   months later.
 
+![lectio probe asking what breaks if you change rank.DefaultParams; the answer scores correct, notes one missed dependent, and reports precision 100 percent and recall 75 percent.](docs/images/probe.png)
+
+<sub>Lectio indexing itself. The grade is F1 against the call graph — no model
+is involved in deciding whether that answer was right.</sub>
+
 Firing rules: on first modification of a symbol not previously engaged, at most
 three a day, seven-day cooldown per symbol, always skippable. **A skip is
 neutral, never a failure** — it never touches the accuracy counters, so
@@ -142,11 +164,14 @@ defect in this tool, in those words.
 Phases 0 through 3 are built. Gate A runs but has not been run at scale.
 
 A three-case smoke run against `gorilla/mux` currently reports **FAIL** — the
-ranking does not beat the churn baseline there. Three cases from one small
-repository is a smoke test, not an answer, and the report says so itself below
-thirty cases. The weights have deliberately not been tuned against it: with
-n=3, tuning would be fitting to noise, which is precisely the failure mode the
-spec warns about.
+ranking does not beat the churn baseline there.
+
+![lectio backtest on gorilla/mux: lectio scores 56.7 percent precision at 10 against 72.2 percent for three of the four baselines, and the verdict reads FAIL.](docs/images/backtest.png)
+
+Three cases from one small repository is a smoke test, not an answer, and the
+report says so itself below thirty cases. The weights have deliberately not
+been tuned against it: with n=3, tuning would be fitting to noise, which is
+precisely the failure mode the spec warns about.
 
 Running Gate A properly is the next thing that matters. Nothing below it should
 be built until it returns a number.
@@ -159,6 +184,10 @@ lectio backtest ~/corpus/*/     # roughly thirty Go repositories
 
 - **Go only.** The `LanguageAdapter` seam exists so a second language is one
   implementation of four methods, not a rewrite.
+- **Analysis fidelity is capped by the Go version `lectio` was built with.**
+  The type checker is compiled in, so a 1.24 binary rejects every package in a
+  repo requiring 1.25 — on go-git that was the difference between 19,005 and
+  36,615 call edges. It warns, but the warning does not yet name the fix.
 - **Generated code is not detected.** Nobody onboards by reading generated
   protobuf, but it currently ranks like anything else.
 - **Coverage is per test binary, not per test function.** Go writes one profile
