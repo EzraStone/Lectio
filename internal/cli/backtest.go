@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/EzraStone/Lectio/internal/backtest"
+	"github.com/EzraStone/Lectio/internal/corpus"
 	"github.com/EzraStone/Lectio/internal/vcs"
 )
 
@@ -20,17 +22,27 @@ func backtestCmd() *Command {
 func runBacktest(ctx context.Context, env *Env, args []string) error {
 	fs := newFlagSet(env, "backtest", "backtest [flags] [repo...]")
 	var (
-		k        = fs.Int("k", 10, "cutoff for precision@k")
-		maxCases = fs.Int("cases", 5, "maximum contributors to test per repository")
-		minPrior = fs.Int("min-history", 100, "commits of prior history required before a rewind means anything")
-		asJSON   = fs.Bool("json", false, "emit JSON instead of formatted text")
-		verbose  = fs.Bool("v", false, "show each case as it runs")
+		k         = fs.Int("k", 10, "cutoff for precision@k")
+		maxCases  = fs.Int("cases", 5, "maximum contributors to test per repository")
+		minPrior  = fs.Int("min-history", 100, "commits of prior history required before a rewind means anything")
+		asJSON    = fs.Bool("json", false, "emit JSON instead of formatted text")
+		verbose   = fs.Bool("v", false, "show each case as it runs")
+		useCorpus = fs.String("corpus", "", "run against a pinned corpus manifest instead of the named repos")
+		cacheDir  = fs.String("cache", "", "corpus cache directory")
+		offline   = fs.Bool("offline", false, "skip dependency fetching for rewound revisions")
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 
 	repos := fs.Args()
+	if *useCorpus != "" {
+		resolved, err := corpusRepos(ctx, env, *useCorpus, *cacheDir)
+		if err != nil {
+			return err
+		}
+		repos = resolved
+	}
 	if len(repos) == 0 {
 		repos = []string{"."}
 	}
@@ -41,6 +53,9 @@ func runBacktest(ctx context.Context, env *Env, args []string) error {
 
 	runOpts := backtest.DefaultRunOptions()
 	runOpts.K = *k
+	if *offline {
+		runOpts.ModuleTimeout = -1
+	}
 
 	git := vcs.NewGit()
 	var results []backtest.CaseResult
@@ -95,6 +110,41 @@ func runBacktest(ctx context.Context, env *Env, args []string) error {
 	}
 	renderReport(env, report)
 	return nil
+}
+
+// corpusRepos resolves a manifest to local clone paths, skipping anything not
+// yet fetched.
+//
+// Skipping rather than failing: a corpus is materialized over many minutes and
+// a single remote that moved should not block a run of the other twenty-nine.
+// The count of what was skipped is reported, because a Gate A number computed
+// over half the corpus is a different claim from one computed over all of it.
+func corpusRepos(ctx context.Context, env *Env, manifestPath, cacheDir string) ([]string, error) {
+	m, err := corpus.Load(manifestPath)
+	if err != nil {
+		return nil, err
+	}
+	cache := corpus.NewCache(cacheDir)
+
+	var paths []string
+	var missing []string
+	for _, s := range cache.Status(ctx, m) {
+		if !s.Ready {
+			missing = append(missing, s.Repo.Name)
+			continue
+		}
+		paths = append(paths, cache.Path(s.Repo))
+	}
+
+	if len(paths) == 0 {
+		return nil, fmt.Errorf("no corpus repositories are ready in %s — run: lectio corpus fetch", cache.Dir)
+	}
+	if len(missing) > 0 {
+		env.note("%s %d of %d corpus repositories are not fetched and will be skipped: %s",
+			env.warn("note:"), len(missing), len(m.Repos), strings.Join(missing, ", "))
+	}
+	env.note("%s %d repositories from %s", env.dim("corpus:"), len(paths), manifestPath)
+	return paths, nil
 }
 
 func renderReport(env *Env, r backtest.Report) {

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -188,5 +189,27 @@ func TestReportOmitsDegradedLineWhenClean(t *testing.T) {
 	})
 	if strings.Contains(out.String(), "thin index") {
 		t.Errorf("a clean run should not mention discards:\n%s", out.String())
+	}
+}
+
+func TestBacktestCorpusRequiresAFetchedCache(t *testing.T) {
+	path := tinyManifest(t, "0123456789abcdef0123456789abcdef01234567")
+
+	code, _, errOut := run(t, "backtest", "--corpus", path, "--cache", t.TempDir())
+	if code != 1 {
+		t.Errorf("exit code = %d, want 1", code)
+	}
+	if !strings.Contains(errOut, "corpus fetch") {
+		t.Errorf("error should say how to fix it, got %q", errOut)
+	}
+}
+
+func TestBacktestCorpusReportsAMissingManifest(t *testing.T) {
+	code, _, errOut := run(t, "backtest", "--corpus", filepath.Join(t.TempDir(), "nope.json"))
+	if code != 1 {
+		t.Errorf("exit code = %d, want 1", code)
+	}
+	if !strings.Contains(errOut, "read corpus") {
+		t.Errorf("stderr = %q", errOut)
 	}
 }
