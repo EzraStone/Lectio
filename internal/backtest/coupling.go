@@ -186,6 +186,54 @@ func newcomerWindows(commits []core.Commit, opts CaseOptions) map[string]window 
 	return out
 }
 
+// RepoCoupling is one repository's coupling result, named.
+type RepoCoupling struct {
+	Repo string
+	CouplingResult
+}
+
+// PooledCoupling combines per-repository results into one answer.
+//
+// Pooled on counts, not averaged over repositories. Lift is a ratio, and the
+// mean of thirty ratios built on small numerators is dominated by whichever
+// repository had four newcomer fixes and got lucky. Adding the counts first
+// and dividing once weights each repository by how much evidence it actually
+// contributed, which is the only weighting that does not manufacture a result
+// out of the smallest members of the corpus.
+func PooledCoupling(rs []RepoCoupling) CouplingResult {
+	var out CouplingResult
+	var allCommits, allOnCoupled float64
+
+	for _, r := range rs {
+		out.Pairs += r.Pairs
+		out.CoupledFiles += r.CoupledFiles
+		out.NewcomerFixes += r.NewcomerFixes
+		out.FixesOnCoupled += r.FixesOnCoupled
+
+		// The per-repo base rate is a share; recovering its numerator and
+		// denominator needs the commit count it came from, which the result
+		// does not carry. Weighting each share by that repository's fix count
+		// is the closest honest reconstruction, and it keeps a repository with
+		// three commits from counting as much as one with three hundred.
+		if r.BaseRate > 0 && r.NewcomerFixes > 0 {
+			allCommits += float64(r.NewcomerFixes)
+			allOnCoupled += r.BaseRate * float64(r.NewcomerFixes)
+		}
+	}
+
+	if allCommits > 0 {
+		out.BaseRate = allOnCoupled / allCommits
+	}
+	if out.NewcomerFixes > 0 {
+		out.FixRate = float64(out.FixesOnCoupled) / float64(out.NewcomerFixes)
+	}
+	if out.BaseRate > 0 {
+		out.Lift = out.FixRate / out.BaseRate
+	}
+	out.Verdict = couplingVerdict(out)
+	return out
+}
+
 // TopCoupledPairs returns the strongest hidden couplings, for a report that
 // shows its working rather than only a number.
 func TopCoupledPairs(v *index.View, p rank.Params, n int) []rank.Pair {

@@ -35,6 +35,8 @@ func runBacktest(ctx context.Context, env *Env, args []string) error {
 			"how symbol scores become file scores: max, mean, or sum")
 		target = fs.String("target", string(backtest.DefaultTarget),
 			"what to grade against: touched files, or the ones they had to correct")
+		coupling = fs.Bool("coupling", false,
+			"run the second backtest instead: does hidden coupling predict where newcomers go wrong?")
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -64,6 +66,10 @@ func runBacktest(ctx context.Context, env *Env, args []string) error {
 	caseOpts := backtest.DefaultCaseOptions()
 	caseOpts.MaxCases = *maxCases
 	caseOpts.MinPriorCommits = *minPrior
+
+	if *coupling {
+		return runCouplingCheck(ctx, env, repos, caseOpts, *asJSON, *verbose)
+	}
 
 	runOpts := backtest.DefaultRunOptions()
 	runOpts.K = *k

@@ -221,7 +221,7 @@ Following the spec's phases:
 | --- | --- |
 | 0 · Adapter interface and Go index | Built |
 | 1 · Ranking, all seven signals | Built |
-| **Gate A · Beat four baselines** | **Harness ready, corpus pinned; not yet run at scale** |
+| **Gate A · Beat four baselines** | **Run at scale three times. Failed all three.** |
 | 2 · Reading path CLI | Built |
 | 3 · Probe engine | Built |
 | Gate B · Week-two return rate | Needs users |
@@ -232,8 +232,11 @@ Following the spec's phases:
 | 8 · GitHub App | Not started |
 | 9 · Team aggregate view | Not started |
 
-Gate A is a hard stop. Nothing below it should be built until it returns a
-number across roughly thirty repositories.
+Gate A is a hard stop, and it has now returned its number three times: once
+with the harness's own size bias removed, once against a size-controlled
+metric, and once against the spec's tiebreaker target. It failed all three.
+See [docs/gate-a-2026-08.md](docs/gate-a-2026-08.md). Nothing below the gate
+should be built on the current ranking.
 
 ## Running Gate A
 
