@@ -2,6 +2,8 @@ package backtest
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -342,5 +344,33 @@ func TestMaxDegradedIsStrictEnoughToMatter(t *testing.T) {
 	ok := IndexHealth{PackagesLoaded: 157, PackagesFailed: 3}
 	if ok.Degraded() > MaxDegraded {
 		t.Errorf("3 of 157 failed (%.2f) should still be scorable", ok.Degraded())
+	}
+}
+
+func TestPrepareModulesIsSafeOnANonModule(t *testing.T) {
+	// No go.mod: must return immediately rather than shelling out.
+	done := make(chan struct{})
+	go func() {
+		prepareModules(context.Background(), t.TempDir(), 0)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("prepareModules blocked on a directory with no go.mod")
+	}
+}
+
+// Offline runs must not stall for minutes per case.
+func TestPrepareModulesCanBeDisabled(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module x\n\ngo 1.24\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	start := time.Now()
+	prepareModules(context.Background(), dir, -1)
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Errorf("a negative timeout should skip fetching entirely, took %v", elapsed)
 	}
 }

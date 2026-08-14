@@ -87,6 +87,42 @@ type RunOptions struct {
 	Weights rank.Weights
 	// WorkDir holds the temporary worktrees. Empty means the system temp dir.
 	WorkDir string
+	// ModuleTimeout bounds the dependency fetch per case. Zero means the
+	// default; negative disables fetching entirely, for offline runs.
+	ModuleTimeout time.Duration
+}
+
+// defaultModuleTimeout bounds `go mod download` for one rewound revision.
+const defaultModuleTimeout = 4 * time.Minute
+
+// prepareModules resolves a rewound revision's dependencies, best effort.
+//
+// A historical revision pins versions that today's module cache may not hold,
+// and go/packages cannot type-check what it cannot resolve. Fetching first
+// removes the most common cause of a degraded index — and it is the cause
+// worth removing rather than merely detecting, because every case it rescues
+// is a case Gate A gets to count.
+//
+// Failure is deliberately ignored. Offline runs, deleted modules, and proxies
+// that no longer serve a version are all normal; indexing proceeds, and the
+// health check decides whether the result is still worth scoring.
+func prepareModules(ctx context.Context, tree string, timeout time.Duration) {
+	if timeout < 0 {
+		return
+	}
+	if timeout == 0 {
+		timeout = defaultModuleTimeout
+	}
+	if _, err := os.Stat(filepath.Join(tree, "go.mod")); err != nil {
+		return
+	}
+
+	runCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(runCtx, "go", "mod", "download", "all")
+	cmd.Dir = tree
+	_ = cmd.Run()
 }
 
 // DefaultRunOptions returns the spec's settings.
@@ -114,6 +150,11 @@ func RunCase(ctx context.Context, c Case, opts RunOptions) CaseResult {
 		return res
 	}
 	defer cleanup()
+
+	// Give the rewound revision a chance to resolve its dependencies before
+	// analyzing it. Without this most degradation is self-inflicted: the
+	// revision's go.mod names versions that are simply not in the local cache.
+	prepareModules(ctx, tree, opts.ModuleTimeout)
 
 	v, health, err := indexAt(ctx, tree, c.FirstSeen)
 	if err != nil {
