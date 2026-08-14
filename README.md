@@ -92,6 +92,9 @@ lectio deps parseInterval --uses  # what it depends on, instead
 lectio index --run-tests          # map tests to symbols (executes repo code)
 lectio probe --health             # is the probe design working?
 lectio probe --forget             # erase all local history
+lectio backtest --ablate          # what each signal is worth, in points
+lectio backtest --collapse max    # the symbol-to-file rule; mean by default
+lectio backtest --target corrected  # grade against what they had to fix
 ```
 
 The index lives in `.lectio/index.db` inside the repo. Add `.lectio/` to your

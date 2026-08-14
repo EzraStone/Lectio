@@ -404,6 +404,10 @@ type StratumAggregate struct {
 	Label     string
 	Cases     int
 	Precision float64
+	// Spread is the median within-band size ratio across those cases. A band
+	// spanning 20x has not controlled for size, and a win inside it is weak
+	// evidence of better choices.
+	Spread float64
 }
 
 // Verdict is the go/no-go.
@@ -424,6 +428,7 @@ func Summarize(results []CaseResult, k int) Report {
 	recalls := map[string][]float64{}
 	mrrs := map[string][]float64{}
 	strata := map[stratumKey][]float64{}
+	spreads := map[stratumKey][]float64{}
 	var order []string
 
 	for _, r := range results {
@@ -458,6 +463,7 @@ func Summarize(results []CaseResult, k int) Report {
 		for _, ss := range r.Strata {
 			key := stratumKey{ss.Strategy, ss.Stratum}
 			strata[key] = append(strata[key], ss.Precision)
+			spreads[key] = append(spreads[key], ss.Spread)
 		}
 	}
 
@@ -479,6 +485,10 @@ func Summarize(results []CaseResult, k int) Report {
 				Label:     StratumLabels[q],
 				Cases:     len(xs),
 				Precision: mean(xs),
+				// Median, not mean: one repository with a single one-line file
+				// in Q1 produces a ratio in the hundreds and would set the
+				// caveat for the whole corpus.
+				Spread: Median(spreads[stratumKey{name, q}]),
 			})
 		}
 	}

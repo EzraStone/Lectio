@@ -178,10 +178,26 @@ type BandComparison struct {
 	Lectio  float64
 	Largest float64
 	Cases   int
+	// Spread is the median within-band size ratio. See StratumScore.Spread.
+	Spread float64
 }
 
 // Won reports whether lectio outscored the baseline in this band.
 func (b BandComparison) Won() bool { return b.Lectio > b.Largest }
+
+// TightSpread is the within-band size ratio below which a band has actually
+// controlled for size.
+//
+// Bands are quartiles by file count, which does not equalize size within one.
+// On the corpus, Q2 and Q3 span 2x to 4x while Q1 spans 10x to 39x — a size
+// strategy still carries real size information inside a band that loose, so a
+// result there says much less about choices than the same result in a tight
+// band. Four is where the corpus separates the two groups.
+const TightSpread = 4.0
+
+// Tight reports whether size is controlled well enough in this band for the
+// comparison to be about choices rather than about size.
+func (b BandComparison) Tight() bool { return b.Spread > 0 && b.Spread <= TightSpread }
 
 // SizeReading interprets the stratified table, which exists to settle one
 // question: when largest-files wins, is it choosing better files or just
@@ -192,6 +208,13 @@ type SizeReading struct {
 	Bands          []BandComparison
 	// LectioWins counts bands where lectio scored higher.
 	LectioWins int
+	// TightBands counts bands where size is controlled well enough for the
+	// comparison to be about choices. See BandComparison.Tight.
+	TightBands int
+	// TightGap is the mean lectio-minus-largest difference across those tight
+	// bands. Near zero means the ranking is adding nothing over size — which
+	// is a different finding from being worse at choosing.
+	TightGap float64
 	// Note states which reading the numbers support, in words.
 	Note string
 }
@@ -223,20 +246,22 @@ func ReadStrata(rep Report) SizeReading {
 	}
 
 	type cell struct {
-		p float64
-		n int
+		p      float64
+		n      int
+		spread float64
 	}
 	lectio := map[int]cell{}
 	largest := map[int]cell{}
 	for _, s := range rep.Strata {
 		switch s.Strategy {
 		case DefaultVariant:
-			lectio[s.Stratum] = cell{s.Precision, s.Cases}
+			lectio[s.Stratum] = cell{s.Precision, s.Cases, s.Spread}
 		case incumbent:
-			largest[s.Stratum] = cell{s.Precision, s.Cases}
+			largest[s.Stratum] = cell{s.Precision, s.Cases, s.Spread}
 		}
 	}
 
+	var tightSum float64
 	for q := 0; q < NumStrata; q++ {
 		l, okL := lectio[q]
 		b, okB := largest[q]
@@ -245,33 +270,59 @@ func ReadStrata(rep Report) SizeReading {
 		}
 		cmp := BandComparison{
 			Stratum: q, Label: StratumLabels[q],
-			Lectio: l.p, Largest: b.p, Cases: min(l.n, b.n),
+			Lectio: l.p, Largest: b.p, Cases: min(l.n, b.n), Spread: l.spread,
 		}
 		r.Bands = append(r.Bands, cmp)
 		if cmp.Won() {
 			r.LectioWins++
 		}
+		if cmp.Tight() {
+			r.TightBands++
+			tightSum += cmp.Lectio - cmp.Largest
+		}
+	}
+	if r.TightBands > 0 {
+		r.TightGap = tightSum / float64(r.TightBands)
 	}
 
 	r.Note = readingNote(r)
 	return r
 }
 
+// negligibleGap is the difference below which two strategies are the same
+// strategy as far as this corpus can tell. Matches the threshold the ablation
+// table is read at.
+const negligibleGap = 0.015
+
 func readingNote(r SizeReading) string {
 	n := len(r.Bands)
 	switch {
 	case n == 0:
 		return "no size band had enough files and enough ground truth to score"
+
 	case r.OverallLectio > r.OverallLargest:
 		return fmt.Sprintf("lectio leads overall and in %d of %d size bands", r.LectioWins, n)
+
 	case r.LectioWins == n:
 		return fmt.Sprintf(
 			"largest files leads overall while losing all %d size bands — the metric is "+
 				"rewarding size, not better choices", n)
+
+	// Losing every band, but by nothing once size is held tight. The ranking
+	// is not making worse choices; it is making the same ones, which is the
+	// more precise and less flattering finding of the two.
+	case r.LectioWins == 0 && r.TightBands > 0 && -r.TightGap < negligibleGap:
+		return fmt.Sprintf(
+			"largest files leads every band, but by %.1f pp across the %d bands where size "+
+				"is actually controlled — the ranking is not losing on choices, it is adding "+
+				"nothing over size",
+			-r.TightGap*100, r.TightBands)
+
 	case r.LectioWins == 0:
 		return fmt.Sprintf(
 			"largest files leads in all %d size bands — its advantage is not an artifact "+
 				"of the metric", n)
+
 	default:
 		return fmt.Sprintf(
 			"largest files leads overall; lectio wins %d of %d size bands — mixed, and not "+
@@ -290,6 +341,15 @@ type StratumScore struct {
 	// support is skipped rather than scored zero — the strategy did not miss
 	// anything there, there was nothing to hit.
 	Support int
+	// Spread is the largest file in this band divided by the smallest, and it
+	// is the caveat the table has to carry.
+	//
+	// Quartiles by count do not equalize size within a band. Measured on the
+	// corpus, Q1 typically spans 10x to 39x while Q2 and Q3 span 2x to 4x — so
+	// a size strategy still holds real size information inside Q1, and a win
+	// there is much weaker evidence of better choices than the same win in Q2.
+	// Reporting the number beats hoping the reader assumes the bands are tight.
+	Spread float64
 }
 
 // scoreStrata splits one case's prediction and ground truth by size band and
@@ -304,10 +364,19 @@ type StratumScore struct {
 func scoreStrata(predicted, actual []string, sizes map[string]int, k int) []StratumScore {
 	bands := Strata(sizes)
 
-	// Candidate counts per band, over everything the strategy could have named.
+	// Candidate counts and size extremes per band, over everything the
+	// strategy could have named.
 	candidates := make([]int, NumStrata)
-	for _, q := range bands {
+	lo := make([]int, NumStrata)
+	hi := make([]int, NumStrata)
+	for f, q := range bands {
 		candidates[q]++
+		if lo[q] == 0 || sizes[f] < lo[q] {
+			lo[q] = sizes[f]
+		}
+		if sizes[f] > hi[q] {
+			hi[q] = sizes[f]
+		}
 	}
 
 	want := toSet(actual)
@@ -340,11 +409,16 @@ func scoreStrata(predicted, actual []string, sizes map[string]int, k int) []Stra
 		// Divided by kq, not by how many the strategy managed to name. A
 		// strategy that ranks only two files in a band and hits both has not
 		// earned 100% — PrecisionAt's shrink-k fallback would hand it that.
+		spread := 1.0
+		if lo[q] > 0 {
+			spread = float64(hi[q]) / float64(lo[q])
+		}
 		out = append(out, StratumScore{
 			Stratum:   q,
 			K:         kq,
 			Precision: float64(hits) / float64(kq),
 			Support:   support[q],
+			Spread:    spread,
 		})
 	}
 	return out

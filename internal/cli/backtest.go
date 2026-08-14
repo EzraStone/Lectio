@@ -276,10 +276,30 @@ func renderStrata(env *Env, r backtest.Report) {
 		env.out("%s", row)
 	}
 
+	// The spread row is the table's own caveat. Quartiles by count do not
+	// equalize size inside a band, and a band spanning 20x has not controlled
+	// for the thing the table exists to control for.
+	spreadRow := "  " + fmt.Sprintf("%-26s", env.dim("size spread within band"))
+	for _, b := range reading.Bands {
+		cell := fmt.Sprintf("%10.0fx", b.Spread)
+		if b.Tight() {
+			cell = env.good(cell)
+		} else {
+			cell = env.warn(cell)
+		}
+		spreadRow += " " + cell
+	}
+	env.out("  %s", dashes(26+12*len(reading.Bands)))
+	env.out("%s", spreadRow)
+
 	env.out("")
 	env.out("%s", env.dim("  Quartiles by lines spanned, equal by file count. Each band is scored at"))
 	env.out("%s", env.dim("  its own cutoff — at most half the band, so ordering still decides it."))
 	env.out("%s", env.dim("  A band with too few files, or none the contributor touched, is omitted."))
+	env.out("%s", env.dim(fmt.Sprintf(
+		"  Equal by count is not equal by size: a band spanning more than %.0fx still", backtest.TightSpread)))
+	env.out("%s", env.dim("  carries size information, so a result there is weaker evidence than one"))
+	env.out("%s", env.dim("  from a tight band."))
 	env.out("")
 
 	render := env.warn
