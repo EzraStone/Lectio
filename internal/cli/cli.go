@@ -49,6 +49,7 @@ func commands() []*Command {
 	return []*Command{
 		indexCmd(),
 		pathCmd(),
+		probeCmd(),
 	}
 }
 

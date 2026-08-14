@@ -136,7 +136,7 @@ func (p Probe) gradeChoice(a Answer) Grade {
 		return Grade{Outcome: store.OutcomeSkipped}
 	}
 	if a.Choice < 0 || a.Choice >= len(p.Choices) {
-		return Grade{Outcome: store.OutcomeWrong, Explanation: "no choice made"}
+		return Grade{Outcome: store.OutcomeWrong, Explanation: "no option was chosen"}
 	}
 	if p.Choices[a.Choice].Correct {
 		return Grade{Outcome: store.OutcomeCorrect, Score: 1, Explanation: p.Provenance}
