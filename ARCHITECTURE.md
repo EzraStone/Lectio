@@ -206,6 +206,7 @@ Changes to these are the ones that need the most thought:
 | Edge orientation (caller → callee) | Reversing it silently inverts centrality and blast radius |
 | `HiddenCoupling` guards | Removing the commit-size cap lets reformats become the entire signal |
 | `Params.Now` / `Options.AsOf` | Wall-clock reads make backtests report numbers they cannot repeat |
+| `backtest.Collapse` | The symbol-to-file rule is a size prior; max quietly reinstates the bug Gate A was measuring |
 
 Several of these have tests written specifically as tripwires — a test named
 after the failure it prevents rather than the function it exercises. Those are
@@ -261,3 +262,53 @@ check decides what is still worth scoring.
 leave-one-out costs what a plain run costs. Only the four baselines decide the
 verdict — a variant outscoring the default is the diagnosis the ablation exists
 to produce, not a gate failure.
+
+### The symbol-to-file collapse
+
+The ranker works in symbols; Gate A is scored in files. The rule bridging them
+is a size prior, and it is not optional — something has to be chosen.
+
+| Rule | Effect |
+| --- | --- |
+| `max` | A file scores as its best symbol. Sixty symbols means sixty chances to place high. |
+| `mean` | A file scores as its typical symbol. Adding an unremarkable one lowers the score. |
+| `sum` | Size-weighting stated outright. |
+
+The first run at scale used `max`, implicitly, by walking the score-sorted
+symbol list and taking each file at its first appearance. Across five corpus
+repositories that put lectio's top ten at 3.5× the repository's median symbol
+count, overlapping the largest-files baseline 6/10 — so the harness was scoring
+a partial reimplementation of the baseline lectio lost to.
+
+`mean` is the default because it is the only one of the three that adds no size
+prior of its own, not because it is obviously right. On repositories whose
+signals are themselves size-correlated it barely moves the ranking, and that is
+the point: what survives it is a fact about the signals rather than about the
+harness. `Report.Collapse` carries the rule up from the cases that ran, so a
+number cannot be quoted without it.
+
+### Controls are not baselines
+
+`Baselines()` returns the four the spec names, and beating all four is the gate.
+`Controls()` returns strategies that are scored and reported but never decide
+it. The size-proportional draw is a control: it exists to explain a result, and
+adding a fifth strategy to the pass condition after seeing the score would be
+moving the goalposts. `decide()` reads only `Baselines()`, and a test asserts a
+control outscoring lectio still passes.
+
+### Size-stratified precision
+
+The overall table cannot tell "chose better files" from "chose bigger files".
+The stratified table splits the same cases into size quartiles — by rank, not by
+value, since the distributions are heavy-tailed enough that equal-width bands
+would be a histogram of the tail — and scores each band at its own cutoff, at
+most half the band. A wider cutoff stops measuring which files were chosen and
+starts measuring how many exist, because any ten of twelve files cover the same
+ground.
+
+`ReadStrata` names the pattern that decides the fork. Largest-files ahead
+overall while behind in every band is Simpson's paradox: the ground truth is
+itself size-weighted, so overall precision scores the composition of a top ten
+rather than the choices in it. Largest-files ahead band by band means the
+opposite, and is reported in the same words — a check that can only exonerate
+the ranking is not a check.
