@@ -11,6 +11,7 @@ import (
 	"github.com/EzraStone/Lectio/internal/adapter"
 	golangadapter "github.com/EzraStone/Lectio/internal/adapter/golang"
 	"github.com/EzraStone/Lectio/internal/core"
+	"github.com/EzraStone/Lectio/internal/graph"
 	"github.com/EzraStone/Lectio/internal/store"
 )
 
@@ -242,5 +243,35 @@ func TestBuildWithoutGitStillIndexes(t *testing.T) {
 	}
 	if len(res.Warnings) == 0 {
 		t.Error("missing history should produce a warning, not silence")
+	}
+}
+
+// A test helper calling a symbol is a real call-graph dependent, but nobody
+// answering "what breaks" enumerates test functions by name. Before this was
+// filtered, the probe for cli.usage expected "cli.run" and "cli.runWithInput"
+// — two test helpers — alongside cli.Main, and a correct answer graded 0%.
+func TestBlastRadiusExcludesTestFunctions(t *testing.T) {
+	_, v := buildIndex(t)
+
+	got := v.BlastRadius("example.com/sample.Parse", 0)
+	if len(got) == 0 {
+		t.Fatal("no dependents found at all")
+	}
+	for id := range got {
+		if sym, ok := v.Symbols[id]; ok && sym.IsTest() {
+			t.Errorf("test symbol %s is in the graded answer set", id)
+		}
+	}
+
+	// The production dependents must survive the filter.
+	if _, ok := got["example.com/sample/billing.Cycle"]; !ok {
+		t.Errorf("a production dependent was lost: %v", got)
+	}
+
+	// TestParse calls Parse, so it is a genuine dependent in the raw graph —
+	// this asserts the filter is doing work rather than the edge being absent.
+	deps := graph.Dependents(v.StaticCalls, "example.com/sample.Parse", 0)
+	if _, ok := deps["example.com/sample.TestParse"]; !ok {
+		t.Skip("fixture no longer has a test calling Parse; the filter is untested here")
 	}
 }

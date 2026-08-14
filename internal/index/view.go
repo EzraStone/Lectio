@@ -153,15 +153,27 @@ func (v *View) Files() []string {
 	return out
 }
 
-// BlastRadius returns the ground-truth answer set for a symbol: everything
-// that transitively depends on it, plus the test binaries that cover it.
+// BlastRadius returns the production symbols that transitively depend on id.
 //
 // Static edges only. This is the set a probe is graded against, and an
 // over-approximated edge here means marking a correct answer wrong.
+//
+// Individual test functions are excluded, and that exclusion is the difference
+// between a fair question and an impossible one. A test helper calling a
+// symbol is a real call-graph dependent, but nobody answering "what breaks"
+// enumerates test functions by name — asking someone to produce
+// "cli.runWithInput" alongside "cli.Main" grades their memory of the test
+// suite rather than their model of the code. What actually breaks, from a
+// test's point of view, is a whole suite going red, and CoveringTests reports
+// that separately at the granularity a person would answer in.
 func (v *View) BlastRadius(id core.SymbolID, maxDepth int) map[core.SymbolID]int {
 	out := make(map[core.SymbolID]int)
 	for dep, dist := range graph.Dependents(v.StaticCalls, string(id), maxDepth) {
-		out[core.SymbolID(dep)] = dist
+		depID := core.SymbolID(dep)
+		if sym, ok := v.Symbols[depID]; ok && sym.IsTest() {
+			continue
+		}
+		out[depID] = dist
 	}
 	return out
 }
