@@ -29,11 +29,19 @@ func Baselines() []Baseline {
 	}
 }
 
-// LargestFiles ranks by symbol count, the cheapest available proxy for size.
+// LargestFiles ranks by the total lines its symbols span, the cheapest
+// available proxy for size.
 //
-// Size is measured in symbols rather than bytes because the index has symbols
-// and does not have file lengths — and because a thousand lines of generated
-// tables is not a bigger read than two hundred lines of dense logic.
+// Size is measured over symbol spans rather than raw file bytes because the
+// index holds symbols and does not hold file lengths — and because the
+// difference is meaningful rather than incidental: imports, licence headers
+// and a thousand lines of generated tables are not a bigger read than two
+// hundred lines of dense logic, and none of them carry a symbol.
+//
+// This is the baseline that won the first run at scale, which makes its
+// definition load-bearing. FileSizes is the single implementation, shared with
+// the size controls, so "size" cannot come to mean two different things in one
+// report.
 type LargestFiles struct{}
 
 // Name implements Baseline.
@@ -41,14 +49,7 @@ func (LargestFiles) Name() string { return "largest files" }
 
 // RankFiles implements Baseline.
 func (LargestFiles) RankFiles(v *index.View, _ rank.Params) []string {
-	size := make(map[string]int)
-	for _, sym := range v.Symbols {
-		if sym.IsTest() {
-			continue
-		}
-		size[sym.File] += sym.Lines()
-	}
-	return rankByScore(size)
+	return rankByScore(FileSizes(v))
 }
 
 // MostChurned ranks by commits touching the file in the window.
@@ -140,6 +141,10 @@ type Lectio struct {
 	// shipped weighting.
 	Label   string
 	Weights rank.Weights
+	// Collapse is how symbol scores become file scores. Empty means
+	// DefaultCollapse, and the zero value being the unbiased rule is
+	// deliberate — the biased one should have to be asked for by name.
+	Collapse Collapse
 }
 
 // Name implements Baseline.
@@ -152,28 +157,21 @@ func (l Lectio) Name() string {
 
 // RankFiles implements Baseline.
 //
-// The ranker works in symbols and the comparison is in files, so symbols
-// collapse to their file in ranked order, first occurrence winning. A file
-// whose second-best symbol also ranks does not get a second slot.
+// The ranker works in symbols and the comparison is in files, so symbol scores
+// collapse to a file score under l.Collapse. See collapse.go for why that
+// choice is not a formality — the rule this originally used was max, and max
+// hands large files more chances to place well.
 func (l Lectio) RankFiles(v *index.View, p rank.Params) []string {
 	w := l.Weights
 	if w == nil {
 		w = rank.DefaultWeights()
 	}
-
-	res := rank.Rank(v, p, w)
-	seen := make(map[string]bool, len(res.Items))
-	out := make([]string, 0, 64)
-	for _, item := range res.Items {
-		if item.Score <= 0 {
-			break
-		}
-		if !seen[item.Symbol.File] {
-			seen[item.Symbol.File] = true
-			out = append(out, item.Symbol.File)
-		}
+	c := l.Collapse
+	if c == "" {
+		c = DefaultCollapse
 	}
-	return out
+
+	return rankFloat(fileScores(rank.Rank(v, p, w).Items, c))
 }
 
 // rankByScore sorts paths by descending score, breaking ties on path so runs

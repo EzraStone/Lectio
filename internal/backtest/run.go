@@ -36,6 +36,10 @@ type CaseResult struct {
 	// Health records how completely the rewound revision type-checked. A case
 	// is only scored when the index behind it is sound enough to mean anything.
 	Health IndexHealth
+	// Strata holds the same scores split by file-size quartile, which is what
+	// distinguishes "this strategy chooses better files" from "this strategy
+	// chooses bigger files".
+	Strata []StratumScore
 }
 
 // DegradedError marks a case discarded because its index was too incomplete
@@ -101,6 +105,9 @@ type RunOptions struct {
 	// Variants scores several weightings against the same index. Empty means
 	// the single default weighting.
 	Variants []Variant
+	// Collapse is how symbol scores become file scores for every lectio
+	// variant. Empty means DefaultCollapse.
+	Collapse Collapse
 	// WorkDir holds the temporary worktrees. Empty means the system temp dir.
 	WorkDir string
 	// ModuleTimeout bounds the dependency fetch per case. Zero means the
@@ -202,11 +209,19 @@ func RunCase(ctx context.Context, c Case, opts RunOptions) CaseResult {
 		variants = []Variant{{Name: DefaultVariant, Weights: opts.Weights}}
 	}
 
-	strategies := make([]Baseline, 0, len(variants)+4)
-	for _, v := range variants {
-		strategies = append(strategies, Lectio{Label: v.Name, Weights: v.Weights})
+	strategies := make([]Baseline, 0, len(variants)+len(Baselines())+len(Controls()))
+	for _, variant := range variants {
+		strategies = append(strategies, Lectio{
+			Label: variant.Name, Weights: variant.Weights, Collapse: opts.Collapse,
+		})
 	}
 	strategies = append(strategies, Baselines()...)
+	strategies = append(strategies, Controls()...)
+
+	// Computed once and shared, so every strategy is stratified against
+	// identical band boundaries. Deriving them per strategy would let two rows
+	// of the same table mean different things by "Q4".
+	sizes := FileSizes(v)
 
 	for _, s := range strategies {
 		predicted := s.RankFiles(v, p)
@@ -217,6 +232,10 @@ func RunCase(ctx context.Context, c Case, opts RunOptions) CaseResult {
 			MRR:       MeanReciprocalRank(predicted, c.TouchedExisting),
 			Predicted: truncate(predicted, opts.K),
 		})
+		for _, ss := range scoreStrata(predicted, c.TouchedExisting, sizes, opts.K) {
+			ss.Strategy = s.Name()
+			res.Strata = append(res.Strata, ss)
+		}
 	}
 
 	res.Elapsed = time.Since(start)
@@ -318,8 +337,21 @@ type Report struct {
 	Aggregates []Aggregate
 	// Medians is the median precision per strategy, keyed by name.
 	Medians map[string]float64
+	// Strata holds mean precision per strategy within each file-size quartile.
+	Strata []StratumAggregate
 	// Verdict states whether Gate A passed and why.
 	Verdict Verdict
+}
+
+// StratumAggregate is one strategy's mean precision inside one size band,
+// across every case where that band had enough files and at least one touched
+// file to make the number mean something.
+type StratumAggregate struct {
+	Strategy  string
+	Stratum   int
+	Label     string
+	Cases     int
+	Precision float64
 }
 
 // Verdict is the go/no-go.
@@ -339,6 +371,7 @@ func Summarize(results []CaseResult, k int) Report {
 	precisions := map[string][]float64{}
 	recalls := map[string][]float64{}
 	mrrs := map[string][]float64{}
+	strata := map[stratumKey][]float64{}
 	var order []string
 
 	for _, r := range results {
@@ -359,14 +392,40 @@ func Summarize(results []CaseResult, k int) Report {
 			recalls[s.Strategy] = append(recalls[s.Strategy], s.Recall)
 			mrrs[s.Strategy] = append(mrrs[s.Strategy], s.MRR)
 		}
+		for _, ss := range r.Strata {
+			key := stratumKey{ss.Strategy, ss.Stratum}
+			strata[key] = append(strata[key], ss.Precision)
+		}
 	}
 
 	for _, name := range order {
 		rep.Aggregates = append(rep.Aggregates, Mean(name, precisions[name], recalls[name], mrrs[name]))
 		rep.Medians[name] = Median(precisions[name])
 	}
+	// Strategy order follows the main table; band order is smallest to
+	// largest, so a row reads left to right as size increases.
+	for _, name := range order {
+		for q := 0; q < NumStrata; q++ {
+			xs := strata[stratumKey{name, q}]
+			if len(xs) == 0 {
+				continue
+			}
+			rep.Strata = append(rep.Strata, StratumAggregate{
+				Strategy:  name,
+				Stratum:   q,
+				Label:     StratumLabels[q],
+				Cases:     len(xs),
+				Precision: mean(xs),
+			})
+		}
+	}
 	rep.Verdict = decide(rep)
 	return rep
+}
+
+type stratumKey struct {
+	strategy string
+	stratum  int
 }
 
 // decide applies the gate: beat all four baselines on mean precision@K.
