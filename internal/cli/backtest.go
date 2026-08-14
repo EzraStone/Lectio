@@ -105,12 +105,15 @@ func renderReport(env *Env, r backtest.Report) {
 	env.out("  %s", dashes(68))
 
 	for _, a := range r.Aggregates {
-		name := a.Strategy
-		if name == "lectio" {
-			name = env.accent(name)
+		// Pad first, colour second. Width verbs count bytes, and ANSI escapes
+		// are bytes, so colouring before padding silently shifts the coloured
+		// row left by the length of the escape sequence.
+		label := fmt.Sprintf("%-26s", a.Strategy)
+		if a.Strategy == "lectio" {
+			label = env.accent(label)
 		}
-		env.out("  %-26s %9.1f%% %9.1f%% %10.3f %7.1f%%",
-			name, a.PrecisionA*100, a.RecallA*100, a.MRR, r.Medians[a.Strategy]*100)
+		env.out("  %s %9.1f%% %9.1f%% %10.3f %7.1f%%",
+			label, a.PrecisionA*100, a.RecallA*100, a.MRR, r.Medians[a.Strategy]*100)
 	}
 
 	env.out("")

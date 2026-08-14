@@ -124,15 +124,18 @@ func ask(ctx context.Context, env *Env, sched *probe.Scheduler, pctx *probe.Cont
 	env.out("")
 	switch grade.Outcome {
 	case store.OutcomeCorrect:
-		env.out("%s %s", env.good("correct"), env.dim(grade.Explanation))
+		// The separator matters: "correct missed cli.runBacktest" reads as a
+		// contradiction until you parse it twice. A high F1 can still have
+		// gaps, and the two clauses need visibly separating.
+		env.out("%s %s", env.good("correct ·"), env.dim(grade.Explanation))
 	case store.OutcomePartial:
-		env.out("%s %s", env.warn("partly"), grade.Explanation)
+		env.out("%s %s", env.warn("partly ·"), grade.Explanation)
 	case store.OutcomeSkipped:
 		// A skip is neutral, never a failure, and the wording has to carry
 		// that or people learn to guess rather than skip.
 		env.out("%s %s", env.dim("skipped ·"), answerKey(pr))
 	default:
-		env.out("%s %s", env.bad("not quite"), grade.Explanation)
+		env.out("%s %s", env.bad("not quite ·"), grade.Explanation)
 	}
 
 	if pr.Kind == probe.KindBlastRadius && grade.Outcome != store.OutcomeSkipped {

@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"bytes"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -99,5 +101,59 @@ func TestBacktestAppearsInHelp(t *testing.T) {
 	}
 	if !strings.Contains(out, "Gate A") {
 		t.Errorf("help should name what backtest is for:\n%s", out)
+	}
+}
+
+// Width verbs count bytes and ANSI escapes are bytes, so colouring a cell
+// before padding it silently shifts that row left. The lectio row is the one
+// that is coloured, which made it the one that looked wrong.
+func TestReportColumnsAlignWithColorOn(t *testing.T) {
+	var out, errBuf bytes.Buffer
+	env := &Env{Stdout: &out, Stderr: &errBuf, Color: true}
+
+	renderReport(env, backtest.Report{
+		Cases: 30, K: 10,
+		Aggregates: []backtest.Aggregate{
+			{Strategy: "lectio", PrecisionA: 0.5},
+			{Strategy: "most churned, 12mo", PrecisionA: 0.4},
+		},
+		Medians: map[string]float64{"lectio": 0.5, "most churned, 12mo": 0.4},
+		Verdict: backtest.Verdict{Passed: true, Note: "beat all baselines"},
+	})
+
+	ansi := regexp.MustCompile(`\x1b\[[0-9;]*m`)
+	var widths []int
+	for _, line := range strings.Split(out.String(), "\n") {
+		plain := ansi.ReplaceAllString(line, "")
+		if strings.Contains(plain, "%") && strings.HasPrefix(plain, "  ") {
+			widths = append(widths, strings.Index(plain, "%"))
+		}
+	}
+	if len(widths) < 2 {
+		t.Fatalf("expected two data rows, got %d:\n%s", len(widths), out.String())
+	}
+	for i := 1; i < len(widths); i++ {
+		if widths[i] != widths[0] {
+			t.Errorf("columns misaligned once colour is stripped: %v\n%s", widths, out.String())
+		}
+	}
+}
+
+// %v on a slice runs the names together with only spaces, and these names
+// contain spaces themselves.
+func TestFailureVerdictSeparatesBaselineNames(t *testing.T) {
+	rep := backtest.Summarize([]backtest.CaseResult{{
+		Scores: []backtest.Score{
+			{Strategy: "lectio", Precision: 0.1},
+			{Strategy: "most churned, 12mo", Precision: 0.5},
+			{Strategy: "most distinct authors", Precision: 0.5},
+		},
+	}}, 10)
+
+	if rep.Verdict.Passed {
+		t.Fatal("expected a failing verdict")
+	}
+	if !strings.Contains(rep.Verdict.Note, "most churned, 12mo; most distinct authors") {
+		t.Errorf("baseline names are not readably separated: %q", rep.Verdict.Note)
 	}
 }

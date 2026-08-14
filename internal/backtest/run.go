@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/EzraStone/Lectio/internal/adapter"
@@ -260,7 +261,10 @@ func decide(rep Report) Verdict {
 		v.Note = fmt.Sprintf("beat all %d baselines on mean precision@%d across %d cases",
 			len(v.Beaten), rep.K, rep.Cases)
 	} else {
-		v.Note = fmt.Sprintf("did not beat %v — phase 1 has failed, and no amount of interface saves it", v.Lost)
+		// Join explicitly: %v on a slice runs the names together with only
+		// spaces between them, and these names contain spaces themselves.
+		v.Note = fmt.Sprintf("did not beat %s — phase 1 has failed, and no amount of interface saves it",
+			strings.Join(v.Lost, "; "))
 	}
 	return v
 }
