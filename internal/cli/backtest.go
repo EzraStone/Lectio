@@ -99,7 +99,12 @@ func runBacktest(ctx context.Context, env *Env, args []string) error {
 
 func renderReport(env *Env, r backtest.Report) {
 	env.out("")
-	env.out("%s", env.bold(fmt.Sprintf("Gate A · %d cases, %d failed", r.Cases, r.Failed)))
+	headline := fmt.Sprintf("Gate A · %d cases scored, %d discarded", r.Cases, r.Failed)
+	env.out("%s", env.bold(headline))
+	if r.Degraded > 0 {
+		env.out("%s", env.warn(fmt.Sprintf(
+			"  %d of those were discarded for a thin index — their revisions did not type-check", r.Degraded)))
+	}
 	env.out("")
 	env.out("  %-26s %10s %10s %10s %8s", "strategy", "prec@"+itoa(r.K), "recall", "MRR", "median")
 	env.out("  %s", dashes(68))

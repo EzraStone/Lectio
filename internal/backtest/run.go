@@ -2,6 +2,7 @@ package backtest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -35,6 +36,18 @@ type CaseResult struct {
 	// Health records how completely the rewound revision type-checked. A case
 	// is only scored when the index behind it is sound enough to mean anything.
 	Health IndexHealth
+}
+
+// DegradedError marks a case discarded because its index was too incomplete
+// to score. It is a distinct type so a report can separate "we could not
+// analyze this revision" from "something went wrong" — the first is a fact
+// about the corpus and the second is a fact about the run, and confusing them
+// hides whichever is actually the problem.
+type DegradedError struct{ Health IndexHealth }
+
+func (e *DegradedError) Error() string {
+	return fmt.Sprintf("index too degraded to score: %d of %d packages failed to type-check (%.0f%%)",
+		e.Health.PackagesFailed, e.Health.PackagesLoaded, e.Health.Degraded()*100)
 }
 
 // IndexHealth describes how much of a rewound revision the adapter could
@@ -168,8 +181,7 @@ func RunCase(ctx context.Context, c Case, opts RunOptions) CaseResult {
 	// number attached. Refusing to score it keeps it out of the average
 	// instead of quietly dragging one side of the comparison down.
 	if d := health.Degraded(); d > MaxDegraded {
-		res.Err = fmt.Errorf("index too degraded to score: %d of %d packages failed to type-check (%.0f%%)",
-			health.PackagesFailed, health.PackagesLoaded, d*100)
+		res.Err = &DegradedError{Health: health}
 		res.Elapsed = time.Since(start)
 		return res
 	}
@@ -280,8 +292,13 @@ func addWorktree(ctx context.Context, repo, rev, workDir string) (string, func()
 
 // Report aggregates results across cases.
 type Report struct {
-	Cases      int
-	Failed     int
+	Cases int
+	// Failed counts cases that errored for any reason.
+	Failed int
+	// Degraded counts the subset of Failed discarded for a thin index. A run
+	// where this is large is not measuring ranking quality, whatever number it
+	// prints, and the report says so rather than leaving it to be inferred.
+	Degraded   int
 	K          int
 	Aggregates []Aggregate
 	// Medians is the median precision per strategy, keyed by name.
@@ -312,6 +329,10 @@ func Summarize(results []CaseResult, k int) Report {
 	for _, r := range results {
 		if r.Err != nil {
 			rep.Failed++
+			var degraded *DegradedError
+			if errors.As(r.Err, &degraded) {
+				rep.Degraded++
+			}
 			continue
 		}
 		rep.Cases++

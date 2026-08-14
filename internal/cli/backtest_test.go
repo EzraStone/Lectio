@@ -157,3 +157,36 @@ func TestFailureVerdictSeparatesBaselineNames(t *testing.T) {
 		t.Errorf("baseline names are not readably separated: %q", rep.Verdict.Note)
 	}
 }
+
+// A run that threw away most of its corpus is not measuring ranking quality,
+// whatever number it prints.
+func TestReportFlagsDegradedDiscards(t *testing.T) {
+	env, out, _ := testEnv()
+	renderReport(env, backtest.Report{
+		Cases: 12, Failed: 18, Degraded: 17, K: 10,
+		Aggregates: []backtest.Aggregate{{Strategy: "lectio", PrecisionA: 0.5}},
+		Medians:    map[string]float64{"lectio": 0.5},
+		Verdict:    backtest.Verdict{Passed: true, Note: "beat all 4 baselines"},
+	})
+
+	got := out.String()
+	if !strings.Contains(got, "17") || !strings.Contains(got, "thin index") {
+		t.Errorf("discarded cases were not surfaced:\n%s", got)
+	}
+	if !strings.Contains(got, "12 cases scored") {
+		t.Errorf("headline should say how many were actually scored:\n%s", got)
+	}
+}
+
+func TestReportOmitsDegradedLineWhenClean(t *testing.T) {
+	env, out, _ := testEnv()
+	renderReport(env, backtest.Report{
+		Cases: 30, Failed: 0, Degraded: 0, K: 10,
+		Aggregates: []backtest.Aggregate{{Strategy: "lectio", PrecisionA: 0.5}},
+		Medians:    map[string]float64{"lectio": 0.5},
+		Verdict:    backtest.Verdict{Passed: true, Note: "beat all 4 baselines"},
+	})
+	if strings.Contains(out.String(), "thin index") {
+		t.Errorf("a clean run should not mention discards:\n%s", out.String())
+	}
+}

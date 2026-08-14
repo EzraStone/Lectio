@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -372,5 +373,37 @@ func TestPrepareModulesCanBeDisabled(t *testing.T) {
 	prepareModules(context.Background(), dir, -1)
 	if elapsed := time.Since(start); elapsed > time.Second {
 		t.Errorf("a negative timeout should skip fetching entirely, took %v", elapsed)
+	}
+}
+
+// "We could not analyze this revision" and "something went wrong" are facts
+// about different things, and merging them hides whichever is real.
+func TestSummarizeSeparatesDegradedFromOtherFailures(t *testing.T) {
+	results := []CaseResult{
+		{Scores: []Score{{Strategy: "lectio", Precision: 0.5}}},
+		{Err: &DegradedError{Health: IndexHealth{PackagesLoaded: 100, PackagesFailed: 95}}},
+		{Err: &DegradedError{Health: IndexHealth{PackagesLoaded: 40, PackagesFailed: 40}}},
+		{Err: context.Canceled},
+	}
+	rep := Summarize(results, 10)
+
+	if rep.Cases != 1 {
+		t.Errorf("scored cases = %d, want 1", rep.Cases)
+	}
+	if rep.Failed != 3 {
+		t.Errorf("failed = %d, want 3", rep.Failed)
+	}
+	if rep.Degraded != 2 {
+		t.Errorf("degraded = %d, want 2 — the cancelled case is not a corpus problem", rep.Degraded)
+	}
+}
+
+func TestDegradedErrorReportsTheNumbers(t *testing.T) {
+	err := &DegradedError{Health: IndexHealth{PackagesLoaded: 157, PackagesFailed: 157}}
+	msg := err.Error()
+	for _, want := range []string{"157", "100%"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("error message %q should contain %q", msg, want)
+		}
 	}
 }
