@@ -10,9 +10,11 @@ Three different signals lead those reasons: hidden coupling, orphaning,
 centrality. A list where every row said the same thing would mean six of the
 seven signals were decoration.
 
-> **Status: unvalidated.** Gate A has not been run at scale. Every claim about
-> ranking quality in this repository is a hypothesis until the backtest returns
-> a number across roughly thirty repositories. See [Where this stands](#where-this-stands).
+> **Status: Gate A run, and failed.** Across 30 pinned repositories and 85
+> scored cases, lectio beat three of four baselines and lost to *largest files*
+> — 43.2% against 48.1% precision@10. Full result and reading:
+> [docs/gate-a-2026-08.md](docs/gate-a-2026-08.md). See
+> [Where this stands](#where-this-stands).
 
 > Every screenshot below is a real run, captured from a terminal — against
 > [go-git](https://github.com/go-git/go-git) (7,775 symbols, 36,615 call edges)
@@ -164,15 +166,39 @@ defect in this tool, in those words.
 
 Phases 0 through 3 are built. Gate A runs but has not been run at scale.
 
-A three-case smoke run against `gorilla/mux` currently reports **FAIL** — the
-ranking does not beat the churn baseline there.
+Gate A has been run at scale and **failed**. 30 pinned repositories, 114 cases
+attempted, 85 scored, run twice with identical numbers:
 
-![lectio backtest on gorilla/mux: lectio scores 56.7 percent precision at 10 against 72.2 percent for three of the four baselines, and the verdict reads FAIL.](docs/images/backtest.png)
+| Strategy | precision@10 |
+| --- | --- |
+| largest files | **48.1%** |
+| lectio | 43.2% |
+| most churned, 12mo | 41.5% |
+| most distinct authors | 41.1% |
+| most recently modified | 40.2% |
 
-Three cases from one small repository is a smoke test, not an answer, and the
-report says so itself below thirty cases. The weights have deliberately not
-been tuned against it: with n=3, tuning would be fitting to noise, which is
-precisely the failure mode the spec warns about.
+![Gate A across 30 repositories: 85 cases scored, 29 discarded. Lectio reaches 43.2 percent precision at 10 against largest files at 48.1 percent, the verdict reads FAIL, and a contribution table shows centrality worth +5.2 points while hidden coupling is -0.8.](docs/images/backtest.png)
+
+The gate requires beating all four. Lectio beat three and lost to *largest
+files*. Ablation says only centrality earns its place (+5.2 pp); the
+differentiator, hidden coupling, moves precision by −0.8 pp — not harmful at
+that size, but not the effect the spec predicted either.
+
+**The most informative result is which baseline won.** The best predictor of
+what a newcomer touched in their first ninety days is how big the file is —
+which is the spec's second named failure mode arriving on schedule: the
+backtest measures what people *touched*, standing in for what they needed to
+*understand*. A newcomer touches big files because that is where the code is.
+
+So the data supports two readings — the ranking is not good enough, or the
+metric rewards size and a size baseline wins by construction — and choosing
+between them is the next piece of work. It cannot be done by tuning weights:
+fitting to a metric that rewards size produces a tool that recommends big
+files, which is the failure it exists to prevent. The spec's own suggested
+tiebreaker is a different target variable, not a different weighting — score
+against the files where newcomers' early commits got reverted or fixed.
+
+The weights are unchanged from before the run.
 
 Running Gate A properly is the next thing that matters. Nothing below it should
 be built until it returns a number.
