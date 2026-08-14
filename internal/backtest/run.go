@@ -40,6 +40,10 @@ type CaseResult struct {
 	// distinguishes "this strategy chooses better files" from "this strategy
 	// chooses bigger files".
 	Strata []StratumScore
+	// Collapse records the symbol-to-file rule this case was scored under. A
+	// Gate A number quoted without it is not reproducible, and the rule is
+	// worth four to five points.
+	Collapse Collapse
 }
 
 // DegradedError marks a case discarded because its index was too incomplete
@@ -161,10 +165,13 @@ func DefaultRunOptions() RunOptions { return RunOptions{K: 10} }
 // and cannot be pointed at a commit.
 func RunCase(ctx context.Context, c Case, opts RunOptions) CaseResult {
 	start := time.Now()
-	res := CaseResult{Case: c}
 	if opts.K <= 0 {
 		opts.K = 10
 	}
+	if opts.Collapse == "" {
+		opts.Collapse = DefaultCollapse
+	}
+	res := CaseResult{Case: c, Collapse: opts.Collapse}
 
 	tree, cleanup, err := addWorktree(ctx, c.Repo, c.RewindTo, opts.WorkDir)
 	if err != nil {
@@ -339,6 +346,10 @@ type Report struct {
 	Medians map[string]float64
 	// Strata holds mean precision per strategy within each file-size quartile.
 	Strata []StratumAggregate
+	// Collapse is the symbol-to-file rule the scored cases ran under, carried
+	// up from them rather than passed in, so the report cannot claim a rule
+	// the run did not use.
+	Collapse Collapse
 	// Verdict states whether Gate A passed and why.
 	Verdict Verdict
 }
@@ -384,6 +395,9 @@ func Summarize(results []CaseResult, k int) Report {
 			continue
 		}
 		rep.Cases++
+		if rep.Collapse == "" {
+			rep.Collapse = r.Collapse
+		}
 		for _, s := range r.Scores {
 			if _, seen := precisions[s.Strategy]; !seen {
 				order = append(order, s.Strategy)

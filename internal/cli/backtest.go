@@ -164,6 +164,11 @@ func renderReport(env *Env, r backtest.Report) {
 	env.out("")
 	headline := fmt.Sprintf("Gate A · %d cases scored, %d discarded", r.Cases, r.Failed)
 	env.out("%s", env.bold(headline))
+	if r.Collapse != "" {
+		// Stated, not assumed. The rule is worth several points, so a number
+		// quoted without it cannot be reproduced or compared to another run.
+		env.out("%s", env.dim(fmt.Sprintf("  symbol scores collapsed to files by %s", r.Collapse)))
+	}
 	if r.Degraded > 0 {
 		env.out("%s", env.warn(fmt.Sprintf(
 			"  %d of those were discarded for a thin index — their revisions did not type-check", r.Degraded)))
