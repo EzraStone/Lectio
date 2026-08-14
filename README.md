@@ -125,9 +125,10 @@ Measured directly, it finds 1,554 such pairs across 29 repositories and they
 have **no relationship to where newcomers go wrong**: a lift of 1.02 over 2,311
 corrective commits, against those same newcomers' base rate.
 
-```sh
-lectio backtest --coupling ~/src/*/     # the test that produced that number
-```
+![lectio backtest --coupling across ten large repositories: per-repo lifts ranging from 0.78 to 1.90, pooled over 1,085 coupled pairs and 1,508 newcomer fixes to a lift of exactly 1.00, with the reading stating that hidden coupling does not predict where newcomers go wrong.](docs/images/coupling.png)
+
+<sub>The ten largest repositories in the corpus. Pooled lift 1.00 — the signal
+finds real pairs, and corrective work does not concentrate on them.</sub>
 
 The two guards work as designed. Commits touching more than twenty files are
 ignored — a reformat generates pairs quadratically while ordinary commits
@@ -179,8 +180,7 @@ defect in this tool, in those words.
 ## Where this stands
 
 Phases 0 through 3 are built. Gate A has been run at scale four times and
-**failed every time**. 30 pinned repositories, 114 cases attempted, 85 scored,
-every run reproducing to one decimal place.
+**failed every time**. 30 pinned repositories, 114 cases attempted, 85 scored.
 
 | Strategy | precision@10 |
 | --- | --- |
@@ -195,7 +195,7 @@ A random draw weighted by file size outscores the seven-signal ranking. It is a
 control rather than a baseline and does not decide the gate, but it is the most
 informative row in the table.
 
-![Gate A across 30 repositories: 85 cases scored, 29 discarded. Lectio reaches 43.2 percent precision at 10 against largest files at 48.1 percent, the verdict reads FAIL, and a contribution table shows centrality worth +5.2 points while hidden coupling is -0.8.](docs/images/backtest.png)
+![Gate A across 30 repositories: 85 cases scored, 29 discarded, case set 499ac2622deb. Lectio reaches 41.9 percent precision at 10 against largest files at 48.1 percent and a size-proportional draw at 44.1 percent; the verdict reads FAIL. A second table splits precision into file-size quartiles with a size-spread row beneath it, and the reading states that largest files leads every band but by 0.3 points where size is controlled, so the ranking is adding nothing over size.](docs/images/backtest.png)
 
 The first run at scale left two readings open — the ranking is not good enough,
 or the metric rewards size and a size baseline wins by construction. Three more
@@ -249,11 +249,17 @@ actionable — you cannot distinguish "hidden coupling is worthless" from "churn
 is drowning everything" — and guessing at weights from a single number is
 exactly how a proxy gets optimized instead of a goal.
 
-Two guards keep the measurement honest. Cases whose rewound revision does not
+Three guards keep the measurement honest. Cases whose rewound revision does not
 type-check are discarded rather than scored, because a degraded index depresses
 lectio while leaving all four baselines intact — churn, recency and author
-counts are pure git. And dependencies are resolved per revision before
-indexing, so most degradation is repaired rather than merely detected.
+counts are pure git. Dependencies are resolved per revision before indexing, so
+most degradation is repaired rather than merely detected.
+
+And every report fingerprints the cases it scored, because that repair depends
+on the network. The same command has scored 85 cases and 77 on different days,
+with every conclusion unchanged and every total about half a point apart. Two
+numbers are comparable when the fingerprints match; a report that stayed silent
+about this would look reproducible without being it.
 
 ### Known limitations
 

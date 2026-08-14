@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -63,5 +64,34 @@ func TestCouplingWindowMatchesTheIndexedHistory(t *testing.T) {
 	}
 	if p.ChurnWindow < 10*365*24*time.Hour {
 		t.Errorf("window of %s is too short to cover a mature repository's history", p.ChurnWindow)
+	}
+}
+
+// A conclusion that scrolls off the right edge of an eighty-column terminal is
+// one nobody reads, and the size readings run to a hundred and fifty
+// characters.
+func TestWrapKeepsLinesInsideTheWidth(t *testing.T) {
+	long := "largest files leads every band, but by 0.3 pp across the 2 bands where size " +
+		"is actually controlled — the ranking is not losing on choices, it is adding " +
+		"nothing over size"
+
+	got := wrap(long, 68)
+	if len(got) < 2 {
+		t.Fatalf("a %d-character note produced %d line(s)", len(long), len(got))
+	}
+	for i, l := range got {
+		if len([]rune(l)) > 68 {
+			t.Errorf("line %d is %d runes: %q", i, len([]rune(l)), l)
+		}
+	}
+	// No word may be lost or invented.
+	if strings.Join(got, " ") != long {
+		t.Errorf("wrapping changed the text:\n got %q\nwant %q", strings.Join(got, " "), long)
+	}
+}
+
+func TestWrapHandlesEmptyInput(t *testing.T) {
+	if got := wrap("", 40); len(got) != 1 || got[0] != "" {
+		t.Errorf("wrap(\"\") = %q", got)
 	}
 }

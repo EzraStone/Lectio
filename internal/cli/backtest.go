@@ -318,7 +318,36 @@ func renderStrata(env *Env, r backtest.Report) {
 	if reading.OverallLectio > reading.OverallLargest || reading.LectioWins == len(reading.Bands) {
 		render = env.good
 	}
-	env.out("%s %s", render("reading:"), reading.Note)
+	lines := wrap(reading.Note, 68)
+	env.out("%s %s", render("reading:"), lines[0])
+	for _, l := range lines[1:] {
+		env.out("         %s", l)
+	}
+}
+
+// wrap breaks text at word boundaries.
+//
+// The size readings run to a hundred and fifty characters, and a conclusion
+// that scrolls off the right edge of an eighty-column terminal is one nobody
+// reads — which for the line that states what the whole table means is the
+// worst place to lose text.
+func wrap(s string, width int) []string {
+	words := strings.Fields(s)
+	if len(words) == 0 {
+		return []string{""}
+	}
+
+	var out []string
+	line := words[0]
+	for _, w := range words[1:] {
+		if len(line)+1+len(w) > width {
+			out = append(out, line)
+			line = w
+			continue
+		}
+		line += " " + w
+	}
+	return append(out, line)
 }
 
 // renderContributions turns an ablation into per-signal effects.
