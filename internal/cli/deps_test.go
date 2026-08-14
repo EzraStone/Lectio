@@ -36,16 +36,68 @@ func TestDepsSeparatesTestsFromProductionCallers(t *testing.T) {
 	dir := indexedRepo(t)
 
 	_, out, _ := run(t, "deps", "Parse", dir)
-	if !strings.Contains(out, "tests that exercise it") {
+	if !strings.Contains(out, "exercise it") {
 		t.Errorf("tests were not given their own section:\n%s", out)
 	}
 
 	hopSection := out
-	if i := strings.Index(out, "tests that exercise it"); i >= 0 {
+	if i := strings.Index(out, "exercise it, across"); i >= 0 {
 		hopSection = out[:i]
 	}
 	if strings.Contains(hopSection, "_test.go") {
 		t.Errorf("a test symbol appeared among the production callers:\n%s", hopSection)
+	}
+}
+
+// On go-git, OpenFileIndex has one production dependent and twenty-eight test
+// functions. Enumerating them buries the thing the reader came for under a
+// wall of names that all say the same thing.
+func TestDepsSummarizesTestsByFile(t *testing.T) {
+	dir := indexedRepo(t)
+
+	_, out, _ := run(t, "deps", "Parse", dir)
+	if !strings.Contains(out, "exercise it, across") {
+		t.Errorf("tests should be summarized by file, not enumerated:\n%s", out)
+	}
+	if !strings.Contains(out, "_test.go") {
+		t.Errorf("the summary should name the test files:\n%s", out)
+	}
+	// Individual test function names must not appear.
+	if strings.Contains(out, "TestParse") {
+		t.Errorf("an individual test function was enumerated:\n%s", out)
+	}
+}
+
+// A fixed pad breaks the moment a symbol name exceeds it, and real
+// repositories are full of names that do.
+func TestDepsColumnsAlignForLongNames(t *testing.T) {
+	dir := indexedRepo(t)
+
+	_, full, _ := run(t, "deps", "--depth", "3", "parseInterval", dir)
+
+	// Only the dependents section; the test summary is its own table.
+	out := full
+	if i := strings.Index(full, "exercise it, across"); i >= 0 {
+		out = full[:i]
+	}
+
+	// The file path is the last field on each row; its start offset must be
+	// identical across rows for the column to read as a column.
+	var offsets []int
+	for _, line := range strings.Split(out, "\n") {
+		if !strings.HasPrefix(line, "  ") || !strings.Contains(line, ".go") {
+			continue
+		}
+		offsets = append(offsets, strings.LastIndex(line, " ")+1)
+	}
+	if len(offsets) < 2 {
+		t.Skipf("not enough rows to compare:\n%s", out)
+	}
+	_ = full
+	for i := 1; i < len(offsets); i++ {
+		if offsets[i] != offsets[0] {
+			t.Errorf("file column is ragged at row %d: offsets %v\n%s", i, offsets, out)
+		}
 	}
 }
 

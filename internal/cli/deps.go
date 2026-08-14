@@ -101,18 +101,7 @@ func runDeps(ctx context.Context, env *Env, args []string) error {
 	}
 	printHops(env, v, production)
 
-	if len(tests) > 0 {
-		env.out("%s", env.dim("tests that exercise it"))
-		names := make([]string, 0, len(tests))
-		for id := range tests {
-			names = append(names, id)
-		}
-		sort.Strings(names)
-		for _, id := range names {
-			env.out("  %-46s %s", core.SymbolID(id).Short(), env.dim(v.Symbols[core.SymbolID(id)].File))
-		}
-		env.out("")
-	}
+	printTestFiles(env, v, tests)
 
 	if covering := v.CoveringTests(target.ID); len(covering) > 0 && !*reverse {
 		env.out("%s", env.dim("test binaries that would go red"))
@@ -177,6 +166,46 @@ func resolveSymbol(v *index.View, query string) (core.Symbol, error) {
 	}
 }
 
+// printTestFiles summarizes the test side by file rather than enumerating
+// every test function.
+//
+// On a real repository the function-level list is overwhelming and useless:
+// go-git's OpenFileIndex has one production dependent and twenty-eight test
+// functions, so the thing a reader came for is buried under a wall of names
+// that all say the same thing. What breaks, from a test's point of view, is a
+// suite going red — which is the granularity a person would answer in, and the
+// same reasoning that keeps individual test functions out of a graded probe.
+func printTestFiles(env *Env, v *index.View, tests map[string]int) {
+	if len(tests) == 0 {
+		return
+	}
+
+	counts := map[string]int{}
+	for id := range tests {
+		counts[v.Symbols[core.SymbolID(id)].File]++
+	}
+	files := make([]string, 0, len(counts))
+	for f := range counts {
+		files = append(files, f)
+	}
+	sort.Strings(files)
+
+	env.out("%s", env.dim(fmt.Sprintf("%s exercise it, across %s",
+		plural(len(tests), "test"), plural(len(files), "file"))))
+	for _, f := range files {
+		env.out("  %-58s %s", f, env.dim(plural(counts[f], "test")))
+	}
+	env.out("")
+}
+
+// plural renders a count with its noun.
+func plural(n int, noun string) string {
+	if n == 1 {
+		return "1 " + noun
+	}
+	return fmt.Sprintf("%d %ss", n, noun)
+}
+
 // partitionByTest splits a result set into production and test symbols.
 func partitionByTest(v *index.View, found map[string]int) (production, tests map[string]int) {
 	production = make(map[string]int, len(found))
@@ -203,13 +232,28 @@ func printHops(env *Env, v *index.View, found map[string]int) {
 	}
 	sort.Ints(hops)
 
+	// One column width for the whole listing, derived from the longest name
+	// present. A fixed pad breaks the moment a symbol exceeds it, and real
+	// repositories are full of names that do.
+	width := 0
+	for id := range found {
+		if n := len(core.SymbolID(id).Short()); n > width {
+			width = n
+		}
+	}
+	if width > 64 {
+		width = 64
+	}
+
 	for _, hop := range hops {
 		names := byHop[hop]
 		sort.Strings(names)
 		env.out("%s", env.dim(fmt.Sprintf("%s away", pluralHop(hop))))
 		for _, id := range names {
 			sym := v.Symbols[core.SymbolID(id)]
-			env.out("  %-46s %s", env.accent(core.SymbolID(id).Short()), env.dim(sym.File))
+			// Pad before colouring: width verbs count the escape bytes.
+			label := fmt.Sprintf("%-*s", width, core.SymbolID(id).Short())
+			env.out("  %s  %s", env.accent(label), env.dim(sym.File))
 		}
 		env.out("")
 	}
