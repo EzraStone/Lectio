@@ -52,6 +52,7 @@ func commands() []*Command {
 		depsCmd(),
 		probeCmd(),
 		backtestCmd(),
+		corpusCmd(),
 	}
 }
 
