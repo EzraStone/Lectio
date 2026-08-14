@@ -51,8 +51,11 @@ func newIndexWriter(ctx context.Context, tx *sql.Tx) (*IndexWriter, error) {
 		dst **sql.Stmt
 		q   string
 	}{
-		{&w.insFile, `INSERT INTO files(path, loc, is_test) VALUES(?,?,?)
-                      ON CONFLICT(path) DO UPDATE SET loc=excluded.loc, is_test=excluded.is_test`},
+		{&w.insFile, `INSERT INTO files(path, loc, is_test, generated) VALUES(?,?,?,?)
+                      ON CONFLICT(path) DO UPDATE SET
+                        loc = excluded.loc,
+                        is_test = excluded.is_test,
+                        generated = max(files.generated, excluded.generated)`},
 		{&w.insSymbol, `INSERT INTO symbols(id,name,kind,package,file_id,start_line,end_line,exported,doc)
                         VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING`},
 		{&w.insCall, `INSERT INTO call_edges(caller,callee,kind,file,line) VALUES(?,?,?,?,?)
@@ -93,10 +96,14 @@ func (w *IndexWriter) close() {
 
 // File registers a source file and returns its id, memoized per writer.
 func (w *IndexWriter) File(path string, loc int) (int64, error) {
+	return w.file(path, loc, false)
+}
+
+func (w *IndexWriter) file(path string, loc int, generated bool) (int64, error) {
 	if id, ok := w.fileIDs[path]; ok {
 		return id, nil
 	}
-	res, err := w.insFile.ExecContext(w.ctx, path, loc, boolInt(core.IsTestFile(path)))
+	res, err := w.insFile.ExecContext(w.ctx, path, loc, boolInt(core.IsTestFile(path)), boolInt(generated))
 	if err != nil {
 		return 0, fmt.Errorf("insert file %s: %w", path, err)
 	}
@@ -113,7 +120,7 @@ func (w *IndexWriter) File(path string, loc int) (int64, error) {
 
 // Symbol writes one declaration, registering its file as a side effect.
 func (w *IndexWriter) Symbol(s core.Symbol) error {
-	fileID, err := w.File(s.File, 0)
+	fileID, err := w.file(s.File, 0, s.Generated)
 	if err != nil {
 		return err
 	}
@@ -174,7 +181,8 @@ func (w *IndexWriter) Authorship(a core.Authorship) error {
 // Symbols returns every indexed declaration.
 func (s *Store) Symbols(ctx context.Context) ([]core.Symbol, error) {
 	rows, err := s.db.QueryContext(ctx, `
-        SELECT s.id, s.name, s.kind, s.package, f.path, s.start_line, s.end_line, s.exported, s.doc
+        SELECT s.id, s.name, s.kind, s.package, f.path, s.start_line, s.end_line,
+               s.exported, s.doc, f.generated
         FROM symbols s JOIN files f ON f.id = s.file_id
         ORDER BY s.id`)
 	if err != nil {
@@ -185,12 +193,13 @@ func (s *Store) Symbols(ctx context.Context) ([]core.Symbol, error) {
 	var out []core.Symbol
 	for rows.Next() {
 		var s core.Symbol
-		var exported int
+		var exported, generated int
 		if err := rows.Scan(&s.ID, &s.Name, &s.Kind, &s.Package, &s.File,
-			&s.StartLine, &s.EndLine, &exported, &s.Doc); err != nil {
+			&s.StartLine, &s.EndLine, &exported, &s.Doc, &generated); err != nil {
 			return nil, err
 		}
 		s.Exported = exported != 0
+		s.Generated = generated != 0
 		out = append(out, s)
 	}
 	return out, rows.Err()
@@ -200,12 +209,13 @@ func (s *Store) Symbols(ctx context.Context) ([]core.Symbol, error) {
 // callers get the zero value and false.
 func (s *Store) SymbolByID(ctx context.Context, id core.SymbolID) (core.Symbol, bool, error) {
 	var sym core.Symbol
-	var exported int
+	var exported, generated int
 	err := s.db.QueryRowContext(ctx, `
-        SELECT s.id, s.name, s.kind, s.package, f.path, s.start_line, s.end_line, s.exported, s.doc
+        SELECT s.id, s.name, s.kind, s.package, f.path, s.start_line, s.end_line,
+               s.exported, s.doc, f.generated
         FROM symbols s JOIN files f ON f.id = s.file_id WHERE s.id = ?`, string(id)).
 		Scan(&sym.ID, &sym.Name, &sym.Kind, &sym.Package, &sym.File,
-			&sym.StartLine, &sym.EndLine, &exported, &sym.Doc)
+			&sym.StartLine, &sym.EndLine, &exported, &sym.Doc, &generated)
 	if err == sql.ErrNoRows {
 		return core.Symbol{}, false, nil
 	}
@@ -213,6 +223,7 @@ func (s *Store) SymbolByID(ctx context.Context, id core.SymbolID) (core.Symbol, 
 		return core.Symbol{}, false, err
 	}
 	sym.Exported = exported != 0
+	sym.Generated = generated != 0
 	return sym, true, nil
 }
 

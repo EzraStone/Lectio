@@ -71,6 +71,14 @@ type Symbol struct {
 	// Doc is the leading comment, trimmed to a single line. It is used only to
 	// render rationales and probe stems; it never influences grading.
 	Doc string
+	// Generated marks a symbol whose file carries the standard
+	// "Code generated … DO NOT EDIT." line.
+	//
+	// Generated code is indexed, because it is real and things really call it,
+	// but it is never recommended reading. Nobody onboards by reading protobuf
+	// stubs, and a top-ten filled with them is the spec's own warning about
+	// the ranking optimizing a proxy instead of the goal.
+	Generated bool
 }
 
 // Lines returns the source span of the symbol, minimum 1.

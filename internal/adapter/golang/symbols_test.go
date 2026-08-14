@@ -183,3 +183,31 @@ func containsAny(s string, subs ...string) bool {
 	}
 	return false
 }
+
+// Generated code is indexed because it is real and things call it, but it is
+// large, heavily depended on, and re-emitted wholesale on every schema change
+// — so it scores well on size, centrality and churn at once. Left in a reading
+// path it is exactly the "top ten fills with trivia" failure the spec warns of.
+func TestGeneratedFilesAreFlagged(t *testing.T) {
+	syms, err := New().Symbols(context.Background(), sampleRoot(t))
+	if err != nil {
+		t.Fatalf("Symbols: %v", err)
+	}
+	byID := symbolIndex(t, syms)
+
+	gen, ok := byID["example.com/sample/generated.(*Request).GetSpec"]
+	if !ok {
+		t.Fatal("generated symbol was not indexed; it should be indexed, just not readable")
+	}
+	if !gen.Generated {
+		t.Error("a file with the DO NOT EDIT header was not flagged as generated")
+	}
+
+	hand, ok := byID["example.com/sample.parseInterval"]
+	if !ok {
+		t.Fatal("parseInterval missing")
+	}
+	if hand.Generated {
+		t.Error("hand-written code was flagged as generated")
+	}
+}

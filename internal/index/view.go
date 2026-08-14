@@ -112,13 +112,21 @@ func Load(ctx context.Context, s *store.Store) (*View, error) {
 	return v, nil
 }
 
-// Readable returns the symbols eligible for a reading path: production code
-// only. Test functions are indexed because coverage needs them, but nobody
-// onboards by reading the test suite in ranked order.
+// Readable returns the symbols eligible for a reading path: hand-written
+// production code only.
+//
+// Two exclusions, both for the same reason. Test functions are indexed because
+// coverage needs them, but nobody onboards by reading the test suite in ranked
+// order. Generated code is indexed because it is real and things really call
+// it, but nobody onboards by reading protobuf stubs either — and generated
+// files are large, heavily depended on, and re-emitted wholesale on every
+// schema change, so they score well on size, centrality and churn at once.
+// Left in, they are precisely the "top ten fills with trivia" failure the spec
+// warns about.
 func (v *View) Readable() []core.Symbol {
 	out := make([]core.Symbol, 0, len(v.Symbols))
 	for _, s := range v.Symbols {
-		if s.IsTest() {
+		if s.IsTest() || s.Generated {
 			continue
 		}
 		out = append(out, s)

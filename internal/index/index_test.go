@@ -275,3 +275,30 @@ func TestBlastRadiusExcludesTestFunctions(t *testing.T) {
 		t.Skip("fixture no longer has a test calling Parse; the filter is untested here")
 	}
 }
+
+func TestReadableExcludesGeneratedCode(t *testing.T) {
+	_, v := buildIndex(t)
+
+	var sawGenerated bool
+	for id, sym := range v.Symbols {
+		if sym.Generated {
+			sawGenerated = true
+			break
+		}
+		_ = id
+	}
+	if !sawGenerated {
+		t.Fatal("fixture has no generated symbols; the exclusion is untested")
+	}
+
+	for _, s := range v.Readable() {
+		if s.Generated {
+			t.Errorf("generated symbol %s reached a reading path", s.ID)
+		}
+	}
+	// It must still be indexed: things really call it, and blast radius needs
+	// to know that.
+	if _, ok := v.Symbols["example.com/sample/generated.(*Request).GetSpec"]; !ok {
+		t.Error("generated symbols should be indexed, just not recommended")
+	}
+}

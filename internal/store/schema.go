@@ -25,10 +25,11 @@ CREATE TABLE meta (
 -- ---------------------------------------------------------------- index ----
 
 CREATE TABLE files (
-    id      INTEGER PRIMARY KEY,
-    path    TEXT NOT NULL UNIQUE,
-    loc     INTEGER NOT NULL DEFAULT 0,
-    is_test INTEGER NOT NULL DEFAULT 0
+    id        INTEGER PRIMARY KEY,
+    path      TEXT NOT NULL UNIQUE,
+    loc       INTEGER NOT NULL DEFAULT 0,
+    is_test   INTEGER NOT NULL DEFAULT 0,
+    generated INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE symbols (

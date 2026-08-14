@@ -36,7 +36,13 @@ func (a *Adapter) Symbols(ctx context.Context, root string) ([]core.Symbol, erro
 			if !a.opts.IncludeTests && core.IsTestFile(rel) {
 				continue
 			}
+			// ast.IsGenerated implements the convention from the Go docs: a
+			// "Code generated … DO NOT EDIT." line before the package clause.
+			// Using the standard library's reading of it rather than a regex
+			// of our own keeps this agreeing with every other Go tool.
+			generated := ast.IsGenerated(file)
 			for _, sym := range fileSymbols(pkg, file, rel) {
+				sym.Generated = generated
 				if _, dup := seen[sym.ID]; !dup {
 					seen[sym.ID] = sym
 				}
