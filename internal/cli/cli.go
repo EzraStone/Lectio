@@ -48,6 +48,7 @@ func DefaultEnv() *Env {
 func commands() []*Command {
 	return []*Command{
 		indexCmd(),
+		pathCmd(),
 	}
 }
 

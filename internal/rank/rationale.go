@@ -137,7 +137,8 @@ func (f *Facts) Explain(item Item, taskLabel string) string {
 		direct := f.DirectDependents[item.Symbol.ID]
 		transitive := f.TransitiveDeps[item.Symbol.ID]
 		if transitive > direct {
-			return fmt.Sprintf("%s call it directly, %d within three hops", plural(direct, "caller"), transitive)
+			return fmt.Sprintf("%s %s it directly, %d within three hops",
+				plural(direct, "caller"), agree(direct, "call"), transitive)
 		}
 		if direct > 0 {
 			return fmt.Sprintf("%s across the repo", plural(direct, "caller"))
@@ -192,6 +193,14 @@ func Annotate(items []Item, f *Facts, taskLabel string) []Item {
 		out[i].Rationale = f.Explain(out[i], taskLabel)
 	}
 	return out
+}
+
+// agree conjugates a verb for a subject of n things.
+func agree(n int, verb string) string {
+	if n == 1 {
+		return verb + "s"
+	}
+	return verb
 }
 
 func plural(n int, noun string) string {

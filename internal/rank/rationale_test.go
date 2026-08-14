@@ -138,6 +138,35 @@ func TestRationaleFallsBackHonestly(t *testing.T) {
 	}
 }
 
+// "1 caller call it directly" is the kind of seam that makes output read as
+// machine-generated, which is corrosive for a tool asking to be trusted.
+func TestRationaleGrammarAgrees(t *testing.T) {
+	b := newView().sym("mod.leaf", "leaf.go").sym("mod.mid", "mid.go").sym("mod.top", "top.go")
+	b.calls("mod.mid", "mod.leaf")
+	b.calls("mod.top", "mod.mid")
+	f := Gather(b.build(), params())
+
+	single := Item{
+		Symbol:        core.Symbol{ID: "mod.leaf", File: "leaf.go"},
+		Contributions: map[Signal]float64{SignalCentrality: 1},
+	}
+	got := f.Explain(single, "")
+	if !strings.Contains(got, "1 caller calls it") {
+		t.Errorf("rationale = %q, want singular agreement", got)
+	}
+
+	b2 := newView().sym("mod.leaf", "leaf.go").sym("mod.a", "a.go").sym("mod.b", "b.go").sym("mod.c", "c.go")
+	b2.calls("mod.a", "mod.leaf")
+	b2.calls("mod.b", "mod.leaf")
+	b2.calls("mod.c", "mod.a")
+	f2 := Gather(b2.build(), params())
+
+	got = f2.Explain(single, "")
+	if !strings.Contains(got, "2 callers call it") {
+		t.Errorf("rationale = %q, want plural agreement", got)
+	}
+}
+
 func TestPlural(t *testing.T) {
 	cases := map[int]string{0: "0 callers", 1: "1 caller", 2: "2 callers"}
 	for n, want := range cases {
