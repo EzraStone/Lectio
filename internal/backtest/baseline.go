@@ -136,11 +136,19 @@ func (MostAuthors) RankFiles(v *index.View, p rank.Params) []string {
 // same code path as the baselines. Anything else invites the comparison to be
 // quietly unfair.
 type Lectio struct {
+	// Label distinguishes ablation variants in a report. Empty means the
+	// shipped weighting.
+	Label   string
 	Weights rank.Weights
 }
 
 // Name implements Baseline.
-func (Lectio) Name() string { return "lectio" }
+func (l Lectio) Name() string {
+	if l.Label == "" {
+		return "lectio"
+	}
+	return l.Label
+}
 
 // RankFiles implements Baseline.
 //

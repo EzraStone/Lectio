@@ -96,8 +96,11 @@ type RunOptions struct {
 	// K is the cutoff for precision@K. Ten, per the spec.
 	K int
 	// Weights overrides the ranking weights, so a run can test a candidate
-	// weighting against the shipped one.
+	// weighting against the shipped one. Ignored when Variants is set.
 	Weights rank.Weights
+	// Variants scores several weightings against the same index. Empty means
+	// the single default weighting.
+	Variants []Variant
 	// WorkDir holds the temporary worktrees. Empty means the system temp dir.
 	WorkDir string
 	// ModuleTimeout bounds the dependency fetch per case. Zero means the
@@ -192,7 +195,19 @@ func RunCase(ctx context.Context, c Case, opts RunOptions) CaseResult {
 	p := rank.DefaultParams()
 	p.Now = c.FirstSeen
 
-	strategies := append([]Baseline{Lectio{Weights: opts.Weights}}, Baselines()...)
+	// Every variant scores against the one index built above, which is what
+	// keeps an eight-way ablation the same cost as a plain run.
+	variants := opts.Variants
+	if len(variants) == 0 {
+		variants = []Variant{{Name: DefaultVariant, Weights: opts.Weights}}
+	}
+
+	strategies := make([]Baseline, 0, len(variants)+4)
+	for _, v := range variants {
+		strategies = append(strategies, Lectio{Label: v.Name, Weights: v.Weights})
+	}
+	strategies = append(strategies, Baselines()...)
+
 	for _, s := range strategies {
 		predicted := s.RankFiles(v, p)
 		res.Scores = append(res.Scores, Score{
