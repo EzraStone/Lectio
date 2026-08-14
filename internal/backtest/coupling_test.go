@@ -195,3 +195,55 @@ func TestTopCoupledPairsShowsItsWorking(t *testing.T) {
 		t.Errorf("the planted pair is missing from %+v", pairs)
 	}
 }
+
+// Lift is a ratio, and the mean of thirty ratios built on small numerators is
+// decided by whichever repository had four fixes and got lucky. Pooling has to
+// add the counts first.
+func TestPooledCouplingWeightsByEvidenceNotByRepository(t *testing.T) {
+	rs := []RepoCoupling{
+		// Tiny and extreme: 3 of 3 fixes on coupled files, lift 3.0.
+		{Repo: "tiny", CouplingResult: CouplingResult{
+			NewcomerFixes: 3, FixesOnCoupled: 3, BaseRate: 0.33, FixRate: 1.0, Lift: 3.0,
+		}},
+		// Large and flat: 100 fixes, half on coupled files, lift 1.0.
+		{Repo: "large", CouplingResult: CouplingResult{
+			NewcomerFixes: 100, FixesOnCoupled: 50, BaseRate: 0.5, FixRate: 0.5, Lift: 1.0,
+		}},
+	}
+	got := PooledCoupling(rs)
+
+	if got.NewcomerFixes != 103 || got.FixesOnCoupled != 53 {
+		t.Fatalf("counts not pooled: %d fixes, %d on coupled", got.NewcomerFixes, got.FixesOnCoupled)
+	}
+	// A mean of the two lifts would be 2.0. Pooled has to land near the large
+	// repository, which supplied 97% of the evidence.
+	if got.Lift > 1.3 {
+		t.Errorf("lift = %.2f — the three-fix repository dominated a hundred-fix one", got.Lift)
+	}
+}
+
+func TestPooledCouplingHandlesAnEmptyRun(t *testing.T) {
+	got := PooledCoupling(nil)
+	if got.Lift != 0 {
+		t.Errorf("lift = %v on no data, want 0", got.Lift)
+	}
+	if got.Verdict == "" {
+		t.Error("an empty run should still say why it has no answer")
+	}
+}
+
+// The guards are the difference between a result and arithmetic on noise, and
+// pooling must not launder a thin corpus into a confident number.
+func TestPooledCouplingStillReportsThinEvidence(t *testing.T) {
+	rs := []RepoCoupling{
+		{Repo: "a", CouplingResult: CouplingResult{NewcomerFixes: 4, FixesOnCoupled: 4, BaseRate: 0.5, Lift: 2}},
+		{Repo: "b", CouplingResult: CouplingResult{NewcomerFixes: 3, FixesOnCoupled: 0, BaseRate: 0.5, Lift: 0}},
+	}
+	got := PooledCoupling(rs)
+	if got.NewcomerFixes >= MinFixesForSignal {
+		t.Fatalf("test fixture no longer exercises the guard: %d fixes", got.NewcomerFixes)
+	}
+	if !strings.Contains(got.Verdict, "sample-size") {
+		t.Errorf("a thin pooled result did not say so: %q", got.Verdict)
+	}
+}
