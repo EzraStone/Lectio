@@ -241,8 +241,10 @@ should be built on the current ranking.
 ## Running Gate A
 
 ```sh
-make corpus     # clone corpus/gate-a.json, pinned (slow, once)
-make gate-a     # backtest with per-signal ablation
+make corpus            # clone corpus/gate-a.json, pinned (slow, once)
+make gate-a            # backtest with per-signal ablation
+make gate-a-corrected  # graded against files newcomers had to fix or revert
+make coupling          # the second backtest, as lift rather than precision
 ```
 
 Three properties of the harness are worth knowing before trusting its output.

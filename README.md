@@ -81,6 +81,7 @@ produce a call graph missing everything in them.
 | `lectio deps <symbol> [repo]` | What breaks if you change this |
 | `lectio probe [repo]` | Answer a question, graded against ground truth |
 | `lectio backtest [repo...]` | Gate A: predict what a past newcomer touched |
+| `lectio backtest --coupling` | Gate A's other half: does hidden coupling predict anything |
 | `lectio corpus <status\|pin\|fetch>` | Manage the thirty repositories Gate A runs against |
 
 Useful flags:
@@ -96,6 +97,7 @@ lectio probe --forget             # erase all local history
 lectio backtest --ablate          # what each signal is worth, in points
 lectio backtest --collapse max    # the symbol-to-file rule; mean by default
 lectio backtest --target corrected  # grade against what they had to fix
+lectio backtest --coupling        # the second backtest: does the differentiator work?
 ```
 
 The index lives in `.lectio/index.db` inside the repo. Add `.lectio/` to your
@@ -232,8 +234,10 @@ that grading at symbol granularity rather than file paths is the one remaining
 explanation under which the ranking is better than it measures.
 
 ```sh
-make corpus     # clone the thirty pinned repositories (slow, once)
-make gate-a     # run the gate with per-signal ablation
+make corpus            # clone the thirty pinned repositories (slow, once)
+make gate-a            # the gate, with per-signal ablation
+make gate-a-corrected  # the same, graded against what newcomers had to fix
+make coupling          # the differentiator, measured directly
 ```
 
 The corpus is [`corpus/gate-a.json`](corpus/gate-a.json): thirty Go

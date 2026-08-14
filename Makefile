@@ -1,7 +1,7 @@
 BINARY := lectio
 PKG    := ./...
 
-.PHONY: build test vet fmt tidy clean install corpus gate-a
+.PHONY: build test vet fmt tidy clean install corpus gate-a gate-a-corrected coupling
 
 build:
 	go build -o bin/$(BINARY) ./cmd/lectio
@@ -30,6 +30,16 @@ corpus: build
 # nothing you can act on.
 gate-a: build
 	./bin/$(BINARY) backtest --corpus corpus/gate-a.json --ablate -v
+
+# Gate A scored against where newcomers went wrong rather than where they went.
+# Reported beside the primary measure, never in place of it.
+gate-a-corrected: build
+	./bin/$(BINARY) backtest --corpus corpus/gate-a.json --ablate --target corrected -v
+
+# The differentiator, measured directly. Precision@10 cannot see a signal that
+# fires on a few dozen file pairs; this asks the claim as the spec states it.
+coupling: build
+	./bin/$(BINARY) backtest --coupling --corpus corpus/gate-a.json -v
 
 clean:
 	rm -rf bin/ backtest-out/
