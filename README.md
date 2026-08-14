@@ -78,6 +78,7 @@ produce a call graph missing everything in them.
 | `lectio deps <symbol> [repo]` | What breaks if you change this |
 | `lectio probe [repo]` | Answer a question, graded against ground truth |
 | `lectio backtest [repo...]` | Gate A: predict what a past newcomer touched |
+| `lectio corpus <status\|pin\|fetch>` | Manage the thirty repositories Gate A runs against |
 
 Useful flags:
 
@@ -177,8 +178,28 @@ Running Gate A properly is the next thing that matters. Nothing below it should
 be built until it returns a number.
 
 ```sh
-lectio backtest ~/corpus/*/     # roughly thirty Go repositories
+make corpus     # clone the thirty pinned repositories (slow, once)
+make gate-a     # run the gate with per-signal ablation
 ```
+
+The corpus is [`corpus/gate-a.json`](corpus/gate-a.json): thirty Go
+repositories pinned to specific commits, each with a note on why it is there —
+including deliberate negative controls where case selection should decline
+rather than score. Pinning is what makes a Gate A number reproducible; a
+corpus following upstream HEAD produces a different answer every week.
+
+`--ablate` scores the ranking with each signal disabled in turn and reports
+what each is worth in percentage points. It costs nothing extra, because every
+variant scores against the same index. Without it a FAIL tells you nothing
+actionable — you cannot distinguish "hidden coupling is worthless" from "churn
+is drowning everything" — and guessing at weights from a single number is
+exactly how a proxy gets optimized instead of a goal.
+
+Two guards keep the measurement honest. Cases whose rewound revision does not
+type-check are discarded rather than scored, because a degraded index depresses
+lectio while leaving all four baselines intact — churn, recency and author
+counts are pure git. And dependencies are resolved per revision before
+indexing, so most degradation is repaired rather than merely detected.
 
 ### Known limitations
 
@@ -188,8 +209,6 @@ lectio backtest ~/corpus/*/     # roughly thirty Go repositories
   The type checker is compiled in, so a 1.24 binary rejects every package in a
   repo requiring 1.25 — on go-git that was the difference between 19,005 and
   36,615 call edges. It warns, but the warning does not yet name the fix.
-- **Generated code is not detected.** Nobody onboards by reading generated
-  protobuf, but it currently ranks like anything else.
 - **Coverage is per test binary, not per test function.** Go writes one profile
   per binary; per-function attribution means re-running the suite once per test.
 - **AI density depends on opt-in markers.** Absence means unknown, never human,

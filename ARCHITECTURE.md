@@ -220,7 +220,7 @@ Following the spec's phases:
 | --- | --- |
 | 0 · Adapter interface and Go index | Built |
 | 1 · Ranking, all seven signals | Built |
-| **Gate A · Beat four baselines** | **Runs; not yet run at scale** |
+| **Gate A · Beat four baselines** | **Harness ready, corpus pinned; not yet run at scale** |
 | 2 · Reading path CLI | Built |
 | 3 · Probe engine | Built |
 | Gate B · Week-two return rate | Needs users |
@@ -233,3 +233,31 @@ Following the spec's phases:
 
 Gate A is a hard stop. Nothing below it should be built until it returns a
 number across roughly thirty repositories.
+
+## Running Gate A
+
+```sh
+make corpus     # clone corpus/gate-a.json, pinned (slow, once)
+make gate-a     # backtest with per-signal ablation
+```
+
+Three properties of the harness are worth knowing before trusting its output.
+
+**Degraded cases are discarded, not scored.** When a rewound revision fails to
+type-check, the damage lands on one side only: lectio loses centrality (a
+failed go-git load gave 19,005 call edges where a clean one gave 36,615) and
+hidden coupling is corrupted rather than weakened, because `relatedness` uses
+call edges to decide whether a co-change is already explained. All four
+baselines are untouched — three are pure git, and largest-files reads symbol
+counts, which survive. Scoring such a case biases the gate toward abandoning a
+ranking that might be fine, so anything above `MaxDegraded` is thrown out and
+counted separately in the report.
+
+**Dependencies are resolved per revision first**, so most degradation is
+repaired rather than merely detected. Failure there is ignored; the health
+check decides what is still worth scoring.
+
+**Ablation is free.** Variants score against the same index, so an eight-way
+leave-one-out costs what a plain run costs. Only the four baselines decide the
+verdict — a variant outscoring the default is the diagnosis the ablation exists
+to produce, not a gate failure.
