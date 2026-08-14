@@ -32,7 +32,51 @@ type CaseResult struct {
 	Scores  []Score
 	Err     error
 	Elapsed time.Duration
+	// Health records how completely the rewound revision type-checked. A case
+	// is only scored when the index behind it is sound enough to mean anything.
+	Health IndexHealth
 }
+
+// IndexHealth describes how much of a rewound revision the adapter could
+// actually analyze.
+type IndexHealth struct {
+	PackagesLoaded int
+	PackagesFailed int
+	Symbols        int
+	CallEdges      int
+	Warnings       []string
+}
+
+// Degraded reports the share of packages that failed to type-check.
+func (h IndexHealth) Degraded() float64 {
+	if h.PackagesLoaded == 0 {
+		return 1
+	}
+	return float64(h.PackagesFailed) / float64(h.PackagesLoaded)
+}
+
+// MaxDegraded is the share of failed packages above which a case is discarded
+// rather than scored.
+//
+// This threshold is the difference between Gate A measuring ranking quality
+// and Gate A measuring whether dependencies happened to resolve. When
+// type-checking degrades, the damage is not symmetric:
+//
+//   - Lectio loses centrality, because the call graph is what collapses. On
+//     go-git a failed load produced 19,005 edges where a clean one produced
+//     36,615.
+//   - Hidden coupling is worse than weakened, it is corrupted: relatedness
+//     uses call edges to decide whether a co-change is already explained, so
+//     missing edges make ordinary pairs look hidden and fill the
+//     differentiator with noise.
+//   - All four baselines are untouched. Churn, recency and author counts are
+//     pure git; largest-files reads symbol counts, which survive a failed
+//     type-check.
+//
+// So a degraded case depresses lectio and leaves the comparison intact, which
+// biases the gate toward abandoning a ranking that might be fine. Discarding
+// the case is the honest response; scoring it is not.
+const MaxDegraded = 0.20
 
 // RunOptions configure a backtest run.
 type RunOptions struct {
@@ -71,9 +115,20 @@ func RunCase(ctx context.Context, c Case, opts RunOptions) CaseResult {
 	}
 	defer cleanup()
 
-	v, err := indexAt(ctx, tree, c.FirstSeen)
+	v, health, err := indexAt(ctx, tree, c.FirstSeen)
 	if err != nil {
 		res.Err = err
+		res.Elapsed = time.Since(start)
+		return res
+	}
+	res.Health = health
+
+	// A case built on a broken index is not a data point, it is noise with a
+	// number attached. Refusing to score it keeps it out of the average
+	// instead of quietly dragging one side of the comparison down.
+	if d := health.Degraded(); d > MaxDegraded {
+		res.Err = fmt.Errorf("index too degraded to score: %d of %d packages failed to type-check (%.0f%%)",
+			health.PackagesFailed, health.PackagesLoaded, d*100)
 		res.Elapsed = time.Since(start)
 		return res
 	}
@@ -101,16 +156,18 @@ func RunCase(ctx context.Context, c Case, opts RunOptions) CaseResult {
 }
 
 // indexAt builds an index of a worktree, with history pinned to that revision.
-func indexAt(ctx context.Context, tree string, asOf time.Time) (*index.View, error) {
+func indexAt(ctx context.Context, tree string, asOf time.Time) (*index.View, IndexHealth, error) {
+	var health IndexHealth
+
 	dbDir, err := os.MkdirTemp("", "lectio-backtest-db-")
 	if err != nil {
-		return nil, err
+		return nil, health, err
 	}
 	defer os.RemoveAll(dbDir)
 
 	s, err := store.Open(ctx, filepath.Join(dbDir, "index.db"))
 	if err != nil {
-		return nil, err
+		return nil, health, err
 	}
 	defer s.Close()
 
@@ -130,16 +187,24 @@ func indexAt(ctx context.Context, tree string, asOf time.Time) (*index.View, err
 	// degrades to structure while still reporting a number.
 	opts.AsOf = asOf
 
-	if _, err := index.Build(ctx, s, a, tree, opts); err != nil {
-		return nil, fmt.Errorf("index rewound tree: %w", err)
+	built, err := index.Build(ctx, s, a, tree, opts)
+	if err != nil {
+		return nil, health, fmt.Errorf("index rewound tree: %w", err)
+	}
+	health = IndexHealth{
+		PackagesLoaded: built.PackagesLoaded,
+		PackagesFailed: built.PackagesFailed,
+		Symbols:        built.Stats.Symbols,
+		CallEdges:      built.Stats.CallEdges,
+		Warnings:       built.Warnings,
 	}
 
 	v, err := index.Load(ctx, s)
 	if err != nil {
-		return nil, err
+		return nil, health, err
 	}
 	v.Now = asOf
-	return v, nil
+	return v, health, nil
 }
 
 // addWorktree checks out rev into a temporary detached worktree.

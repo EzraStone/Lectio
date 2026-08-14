@@ -282,3 +282,65 @@ func itoa(i int) string {
 	}
 	return string(b[p:])
 }
+
+// ------------------------------------------------------------- index health --
+
+func TestIndexHealthDegraded(t *testing.T) {
+	cases := []struct {
+		loaded, failed int
+		want           float64
+	}{
+		{100, 0, 0},
+		{100, 20, 0.20},
+		{100, 90, 0.90},
+		{0, 0, 1}, // nothing loaded is total degradation, not perfect health
+	}
+	for _, c := range cases {
+		h := IndexHealth{PackagesLoaded: c.loaded, PackagesFailed: c.failed}
+		if got := h.Degraded(); got != c.want {
+			t.Errorf("Degraded(%d/%d) = %v, want %v", c.failed, c.loaded, got, c.want)
+		}
+	}
+}
+
+// A degraded index depresses lectio and leaves all four baselines intact, so
+// scoring one biases the gate toward abandoning a ranking that might be fine.
+func TestSummarizeExcludesDegradedCases(t *testing.T) {
+	good := CaseResult{
+		Health: IndexHealth{PackagesLoaded: 100},
+		Scores: []Score{
+			{Strategy: "lectio", Precision: 0.6},
+			{Strategy: "most churned, 12mo", Precision: 0.3},
+		},
+	}
+	// The runner marks a degraded case with Err, which Summarize already
+	// counts as a failure rather than averaging in.
+	degraded := CaseResult{
+		Health: IndexHealth{PackagesLoaded: 100, PackagesFailed: 90},
+		Err:    context.DeadlineExceeded,
+	}
+
+	rep := Summarize([]CaseResult{good, degraded}, 10)
+	if rep.Cases != 1 || rep.Failed != 1 {
+		t.Fatalf("cases=%d failed=%d, want 1 and 1", rep.Cases, rep.Failed)
+	}
+	near(t, rep.Aggregates[0].PrecisionA, 0.6, "lectio precision")
+	if !rep.Verdict.Passed {
+		t.Errorf("the sound case beat its baseline and should pass: %+v", rep.Verdict)
+	}
+}
+
+func TestMaxDegradedIsStrictEnoughToMatter(t *testing.T) {
+	// The go-git case that motivated this: 157 of 157 packages failed, which
+	// halved the call graph while leaving every baseline untouched.
+	h := IndexHealth{PackagesLoaded: 157, PackagesFailed: 157}
+	if h.Degraded() <= MaxDegraded {
+		t.Errorf("a total type-check failure (%.2f) must exceed MaxDegraded (%.2f)", h.Degraded(), MaxDegraded)
+	}
+	// A couple of broken packages in a large repo is normal and must not
+	// discard the case.
+	ok := IndexHealth{PackagesLoaded: 157, PackagesFailed: 3}
+	if ok.Degraded() > MaxDegraded {
+		t.Errorf("3 of 157 failed (%.2f) should still be scorable", ok.Degraded())
+	}
+}
