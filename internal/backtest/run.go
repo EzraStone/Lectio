@@ -386,9 +386,18 @@ func decide(rep Report) Verdict {
 		return Verdict{Note: "no cases produced a result"}
 	}
 
+	// Only the four baselines decide the gate. An ablation variant scoring
+	// higher is diagnostic — it says a signal is hurting — not a gate failure,
+	// and counting it as one produced a FAIL note listing "lectio
+	// −hidden_coupling" as something lectio must beat.
+	isBaseline := make(map[string]bool, 4)
+	for _, b := range Baselines() {
+		isBaseline[b.Name()] = true
+	}
+
 	v := Verdict{Passed: true}
 	for _, a := range rep.Aggregates {
-		if a.Strategy == "lectio" {
+		if !isBaseline[a.Strategy] {
 			continue
 		}
 		if lectio > a.PrecisionA {

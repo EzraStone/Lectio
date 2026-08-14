@@ -213,3 +213,69 @@ func TestBacktestCorpusReportsAMissingManifest(t *testing.T) {
 		t.Errorf("stderr = %q", errOut)
 	}
 }
+
+// The table already holds these numbers, but reading them means subtracting
+// each ablation row from the baseline by eye across seven near-identical rows.
+func TestReportRendersSignalContributions(t *testing.T) {
+	env, out, _ := testEnv()
+	renderReport(env, backtest.Report{
+		Cases: 30, K: 10,
+		Aggregates: []backtest.Aggregate{
+			{Strategy: "lectio", PrecisionA: 0.40},
+			{Strategy: "lectio −centrality", PrecisionA: 0.25},
+			{Strategy: "lectio −churn", PrecisionA: 0.46},
+			{Strategy: "most churned, 12mo", PrecisionA: 0.30},
+		},
+		Medians: map[string]float64{},
+		Verdict: backtest.Verdict{Passed: true, Note: "beat all baselines"},
+	})
+
+	got := out.String()
+	if !strings.Contains(got, "What each signal is worth") {
+		t.Fatalf("no contribution section:\n%s", got)
+	}
+	if !strings.Contains(got, "+15.0 pp") {
+		t.Errorf("centrality's contribution was not computed:\n%s", got)
+	}
+	if !strings.Contains(got, "-6.0 pp") {
+		t.Errorf("churn's negative contribution was not computed:\n%s", got)
+	}
+	// A signal that hurts is the spec's named failure mode and must be called
+	// out rather than left as a minus sign in a table.
+	if !strings.Contains(got, "look here") || !strings.Contains(got, "churn") {
+		t.Errorf("a harmful signal was not surfaced:\n%s", got)
+	}
+}
+
+func TestReportOmitsContributionsOnAPlainRun(t *testing.T) {
+	env, out, _ := testEnv()
+	renderReport(env, backtest.Report{
+		Cases: 30, K: 10,
+		Aggregates: []backtest.Aggregate{
+			{Strategy: "lectio", PrecisionA: 0.40},
+			{Strategy: "largest files", PrecisionA: 0.10},
+		},
+		Medians: map[string]float64{},
+		Verdict: backtest.Verdict{Passed: true, Note: "beat all baselines"},
+	})
+	if strings.Contains(out.String(), "What each signal is worth") {
+		t.Errorf("a plain run should not show a contribution table:\n%s", out.String())
+	}
+}
+
+func TestReportStaysQuietWhenNoSignalHurts(t *testing.T) {
+	env, out, _ := testEnv()
+	renderReport(env, backtest.Report{
+		Cases: 30, K: 10,
+		Aggregates: []backtest.Aggregate{
+			{Strategy: "lectio", PrecisionA: 0.40},
+			{Strategy: "lectio −centrality", PrecisionA: 0.25},
+			{Strategy: "lectio −churn", PrecisionA: 0.31},
+		},
+		Medians: map[string]float64{},
+		Verdict: backtest.Verdict{Passed: true, Note: "beat all baselines"},
+	})
+	if strings.Contains(out.String(), "look here") {
+		t.Errorf("no signal hurt, so nothing should be flagged:\n%s", out.String())
+	}
+}

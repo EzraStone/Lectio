@@ -30,6 +30,7 @@ func runBacktest(ctx context.Context, env *Env, args []string) error {
 		useCorpus = fs.String("corpus", "", "run against a pinned corpus manifest instead of the named repos")
 		cacheDir  = fs.String("cache", "", "corpus cache directory")
 		offline   = fs.Bool("offline", false, "skip dependency fetching for rewound revisions")
+		ablate    = fs.Bool("ablate", false, "also score the ranking with each signal disabled in turn")
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -55,6 +56,10 @@ func runBacktest(ctx context.Context, env *Env, args []string) error {
 	runOpts.K = *k
 	if *offline {
 		runOpts.ModuleTimeout = -1
+	}
+	if *ablate {
+		// Costs nothing extra: every variant scores against the same index.
+		runOpts.Variants = backtest.Ablations()
 	}
 
 	git := vcs.NewGit()
@@ -178,6 +183,8 @@ func renderReport(env *Env, r backtest.Report) {
 		env.out("%s %s", env.bad("FAIL"), r.Verdict.Note)
 	}
 
+	renderContributions(env, r)
+
 	// The gate is only meaningful at scale. Reporting a pass on four cases
 	// without saying so would be the most flattering possible reading of the
 	// evidence, which is exactly what a go/no-go must not do.
@@ -186,6 +193,48 @@ func renderReport(env *Env, r backtest.Report) {
 		env.out("%s", env.warn(fmt.Sprintf(
 			"This is %d cases. The spec calls for roughly thirty Go repositories;", r.Cases)))
 		env.out("%s", env.warn("below that, treat the verdict as a smoke test rather than an answer."))
+	}
+}
+
+// renderContributions turns an ablation into per-signal effects.
+//
+// The table above already holds these numbers, but reading them requires
+// subtracting each ablation row from the baseline by eye across seven rows of
+// near-identical figures. Doing the subtraction is the difference between a
+// report someone skims and one someone acts on.
+func renderContributions(env *Env, r backtest.Report) {
+	cs := backtest.Contributions(r)
+	if len(cs) == 0 {
+		return
+	}
+
+	env.out("")
+	env.out("%s", env.bold("What each signal is worth"))
+	env.out("%s", env.dim("  the change in precision@"+itoa(r.K)+" from removing it"))
+	env.out("")
+
+	for _, c := range cs {
+		sign := "+"
+		render := env.good
+		switch {
+		case c.Delta < -0.001:
+			sign, render = "", env.bad
+		case c.Delta <= 0.001:
+			sign, render = " ", env.dim
+		}
+		env.out("  %-20s %s", c.Signal, render(fmt.Sprintf("%s%.1f pp", sign, c.Delta*100)))
+	}
+
+	if harmful := backtest.Harmful(cs); len(harmful) > 0 {
+		names := make([]string, 0, len(harmful))
+		for _, c := range harmful {
+			names = append(names, string(c.Signal))
+		}
+		env.out("")
+		env.out("%s removing %s would improve the ranking.",
+			env.warn("look here:"), strings.Join(names, " and "))
+		env.out("%s", env.dim("A signal that hurts is the spec's named failure mode: the ranking"))
+		env.out("%s", env.dim("has been fitted to a proxy rather than to what a newcomer needs."))
 	}
 }
 

@@ -131,3 +131,57 @@ func TestLectioVariantsAreDistinctStrategies(t *testing.T) {
 		t.Error("variants should stay recognizable as lectio in a report")
 	}
 }
+
+// The gate is "beat the four baselines". An ablation variant scoring higher
+// says a signal is hurting — diagnostic, not a gate failure. Before this was
+// fixed, an --ablate run produced a FAIL note listing "lectio
+// −hidden_coupling" among the things lectio had failed to beat.
+func TestVerdictIgnoresAblationVariants(t *testing.T) {
+	rep := Report{
+		Cases: 30, K: 10,
+		Aggregates: []Aggregate{
+			{Strategy: "lectio", PrecisionA: 0.50},
+			{Strategy: "lectio −hidden_coupling", PrecisionA: 0.50},
+			{Strategy: "lectio −fix_density", PrecisionA: 0.55},
+			{Strategy: "largest files", PrecisionA: 0.10},
+			{Strategy: "most churned, 12mo", PrecisionA: 0.20},
+			{Strategy: "most recently modified", PrecisionA: 0.15},
+			{Strategy: "most distinct authors", PrecisionA: 0.25},
+		},
+	}
+	v := decide(rep)
+
+	if !v.Passed {
+		t.Errorf("beating all four baselines should pass: %+v", v)
+	}
+	for _, name := range append(append([]string{}, v.Lost...), v.Beaten...) {
+		if strings.HasPrefix(name, "lectio") {
+			t.Errorf("verdict counted an ablation variant %q as a baseline", name)
+		}
+	}
+	if len(v.Beaten) != 4 {
+		t.Errorf("beaten = %v, want exactly the four baselines", v.Beaten)
+	}
+}
+
+// And an ablation run that genuinely loses to a baseline must still fail.
+func TestVerdictStillFailsAgainstBaselinesDuringAblation(t *testing.T) {
+	rep := Report{
+		Cases: 30, K: 10,
+		Aggregates: []Aggregate{
+			{Strategy: "lectio", PrecisionA: 0.20},
+			{Strategy: "lectio −churn", PrecisionA: 0.60},
+			{Strategy: "largest files", PrecisionA: 0.10},
+			{Strategy: "most churned, 12mo", PrecisionA: 0.40},
+			{Strategy: "most recently modified", PrecisionA: 0.15},
+			{Strategy: "most distinct authors", PrecisionA: 0.12},
+		},
+	}
+	v := decide(rep)
+	if v.Passed {
+		t.Error("losing to churn must still fail the gate")
+	}
+	if len(v.Lost) != 1 || v.Lost[0] != "most churned, 12mo" {
+		t.Errorf("lost = %v, want just the churn baseline", v.Lost)
+	}
+}
