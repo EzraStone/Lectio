@@ -1,6 +1,7 @@
 package backtest
 
 import (
+	"fmt"
 	"hash/fnv"
 	"math/rand"
 	"sort"
@@ -167,6 +168,115 @@ func stratumK(candidates, k int) int {
 		return 0
 	}
 	return kq
+}
+
+// BandComparison is lectio against the largest-files baseline inside one size
+// band.
+type BandComparison struct {
+	Stratum int
+	Label   string
+	Lectio  float64
+	Largest float64
+	Cases   int
+}
+
+// Won reports whether lectio outscored the baseline in this band.
+func (b BandComparison) Won() bool { return b.Lectio > b.Largest }
+
+// SizeReading interprets the stratified table, which exists to settle one
+// question: when largest-files wins, is it choosing better files or just
+// bigger ones?
+type SizeReading struct {
+	OverallLectio  float64
+	OverallLargest float64
+	Bands          []BandComparison
+	// LectioWins counts bands where lectio scored higher.
+	LectioWins int
+	// Note states which reading the numbers support, in words.
+	Note string
+}
+
+// ReadStrata compares lectio to the largest-files baseline band by band.
+//
+// The pattern worth naming is Simpson's paradox: largest-files ahead overall
+// while behind inside every band. That happens when the ranking picks better
+// files at each size and still loses, because the metric's ground truth is
+// itself size-weighted — a newcomer touches big files because that is where
+// the code is. Overall precision then rewards a strategy for the composition
+// of its top ten rather than for its choices, and a size strategy wins by
+// construction rather than by merit.
+//
+// The opposite pattern is equally decisive in the other direction. If
+// largest-files also wins band by band, size is not an artifact of the metric
+// and the ranking is genuinely behind.
+func ReadStrata(rep Report) SizeReading {
+	const incumbent = "largest files"
+
+	var r SizeReading
+	for _, a := range rep.Aggregates {
+		switch a.Strategy {
+		case DefaultVariant:
+			r.OverallLectio = a.PrecisionA
+		case incumbent:
+			r.OverallLargest = a.PrecisionA
+		}
+	}
+
+	type cell struct {
+		p float64
+		n int
+	}
+	lectio := map[int]cell{}
+	largest := map[int]cell{}
+	for _, s := range rep.Strata {
+		switch s.Strategy {
+		case DefaultVariant:
+			lectio[s.Stratum] = cell{s.Precision, s.Cases}
+		case incumbent:
+			largest[s.Stratum] = cell{s.Precision, s.Cases}
+		}
+	}
+
+	for q := 0; q < NumStrata; q++ {
+		l, okL := lectio[q]
+		b, okB := largest[q]
+		if !okL || !okB {
+			continue
+		}
+		cmp := BandComparison{
+			Stratum: q, Label: StratumLabels[q],
+			Lectio: l.p, Largest: b.p, Cases: min(l.n, b.n),
+		}
+		r.Bands = append(r.Bands, cmp)
+		if cmp.Won() {
+			r.LectioWins++
+		}
+	}
+
+	r.Note = readingNote(r)
+	return r
+}
+
+func readingNote(r SizeReading) string {
+	n := len(r.Bands)
+	switch {
+	case n == 0:
+		return "no size band had enough files and enough ground truth to score"
+	case r.OverallLectio > r.OverallLargest:
+		return fmt.Sprintf("lectio leads overall and in %d of %d size bands", r.LectioWins, n)
+	case r.LectioWins == n:
+		return fmt.Sprintf(
+			"largest files leads overall while losing all %d size bands — the metric is "+
+				"rewarding size, not better choices", n)
+	case r.LectioWins == 0:
+		return fmt.Sprintf(
+			"largest files leads in all %d size bands — its advantage is not an artifact "+
+				"of the metric", n)
+	default:
+		return fmt.Sprintf(
+			"largest files leads overall; lectio wins %d of %d size bands — mixed, and not "+
+				"enough to settle it", r.LectioWins, n)
+	}
 }
 
 // StratumScore is one strategy's precision inside one size band on one case.

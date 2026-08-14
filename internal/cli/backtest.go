@@ -31,8 +31,15 @@ func runBacktest(ctx context.Context, env *Env, args []string) error {
 		cacheDir  = fs.String("cache", "", "corpus cache directory")
 		offline   = fs.Bool("offline", false, "skip dependency fetching for rewound revisions")
 		ablate    = fs.Bool("ablate", false, "also score the ranking with each signal disabled in turn")
+		collapse  = fs.String("collapse", string(backtest.DefaultCollapse),
+			"how symbol scores become file scores: max, mean, or sum")
 	)
 	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	collapseRule, err := backtest.ParseCollapse(*collapse)
+	if err != nil {
 		return err
 	}
 
@@ -54,6 +61,7 @@ func runBacktest(ctx context.Context, env *Env, args []string) error {
 
 	runOpts := backtest.DefaultRunOptions()
 	runOpts.K = *k
+	runOpts.Collapse = collapseRule
 	if *offline {
 		runOpts.ModuleTimeout = -1
 	}
@@ -183,6 +191,7 @@ func renderReport(env *Env, r backtest.Report) {
 		env.out("%s %s", env.bad("FAIL"), r.Verdict.Note)
 	}
 
+	renderStrata(env, r)
 	renderContributions(env, r)
 
 	// The gate is only meaningful at scale. Reporting a pass on four cases
@@ -194,6 +203,70 @@ func renderReport(env *Env, r backtest.Report) {
 			"This is %d cases. The spec calls for roughly thirty Go repositories;", r.Cases)))
 		env.out("%s", env.warn("below that, treat the verdict as a smoke test rather than an answer."))
 	}
+}
+
+// renderStrata prints precision inside each file-size band.
+//
+// The overall table cannot distinguish "chose better files" from "chose bigger
+// files", and after a run where largest-files won, that is the only question
+// worth asking. Splitting the same cases by candidate size answers it: a
+// strategy that wins overall while losing every band is winning on the size
+// composition of its top ten rather than on its choices.
+func renderStrata(env *Env, r backtest.Report) {
+	if len(r.Strata) == 0 {
+		return
+	}
+	reading := backtest.ReadStrata(r)
+	if len(reading.Bands) == 0 {
+		return
+	}
+
+	env.out("")
+	env.out("%s", env.bold("Precision within file-size bands"))
+	env.out("%s", env.dim("  the same cases, split by how large the candidate files are"))
+	env.out("")
+
+	header := fmt.Sprintf("  %-26s", "strategy")
+	for _, b := range reading.Bands {
+		header += fmt.Sprintf(" %11s", backtest.StratumLabels[b.Stratum])
+	}
+	env.out("%s", header)
+	env.out("  %s", dashes(26+12*len(reading.Bands)))
+
+	byStrategy := map[string]map[int]float64{}
+	var order []string
+	for _, s := range r.Strata {
+		if _, seen := byStrategy[s.Strategy]; !seen {
+			byStrategy[s.Strategy] = map[int]float64{}
+			order = append(order, s.Strategy)
+		}
+		byStrategy[s.Strategy][s.Stratum] = s.Precision
+	}
+
+	for _, name := range order {
+		// Pad before colouring: width verbs count escape bytes.
+		label := fmt.Sprintf("%-26s", name)
+		if name == "lectio" {
+			label = env.accent(label)
+		}
+		row := "  " + label
+		for _, b := range reading.Bands {
+			row += fmt.Sprintf(" %10.1f%%", byStrategy[name][b.Stratum]*100)
+		}
+		env.out("%s", row)
+	}
+
+	env.out("")
+	env.out("%s", env.dim("  Quartiles by lines spanned, equal by file count. Each band is scored at"))
+	env.out("%s", env.dim("  its own cutoff — at most half the band, so ordering still decides it."))
+	env.out("%s", env.dim("  A band with too few files, or none the contributor touched, is omitted."))
+	env.out("")
+
+	render := env.warn
+	if reading.OverallLectio > reading.OverallLargest || reading.LectioWins == len(reading.Bands) {
+		render = env.good
+	}
+	env.out("%s %s", render("reading:"), reading.Note)
 }
 
 // renderContributions turns an ablation into per-signal effects.
