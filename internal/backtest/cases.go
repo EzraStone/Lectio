@@ -28,6 +28,83 @@ type Case struct {
 	// TouchedExisting is Touched restricted to files that already existed at
 	// RewindTo. This is what predictions are scored against.
 	TouchedExisting []string
+	// Corrected is where their corrective commits landed: files touched by a
+	// fix or revert inside the horizon, again restricted to files that already
+	// existed.
+	//
+	// This is the spec's own tiebreaker, and it is a different target rather
+	// than a different weighting. Touched-files answers "where did they go",
+	// which a newcomer answers with the biggest files because that is where the
+	// code is. Corrected-files answers "where did they go wrong", which is
+	// nearer to what orientation is for — and it is not obviously size-biased,
+	// because a mistake is about misunderstanding rather than about volume.
+	Corrected []string
+}
+
+// Ground returns the file set a prediction is scored against under one target.
+func (c Case) Ground(t Target) []string {
+	if t == TargetCorrected {
+		return c.Corrected
+	}
+	return c.TouchedExisting
+}
+
+// Target names what a prediction is graded against.
+type Target string
+
+const (
+	// TargetTouched is every existing file the newcomer changed. The spec's
+	// primary measure, and the one largest-files won on.
+	TargetTouched Target = "touched"
+	// TargetCorrected is the subset they had to fix or revert.
+	TargetCorrected Target = "corrected"
+)
+
+// DefaultTarget is the spec's primary measure. The tiebreaker is reported
+// beside it, never in place of it — swapping the target after a failing run
+// and quoting only the new number would be choosing the measure that flatters.
+const DefaultTarget = TargetTouched
+
+// ParseTarget validates a target name.
+func ParseTarget(s string) (Target, error) {
+	switch t := Target(s); t {
+	case TargetTouched, TargetCorrected:
+		return t, nil
+	case "":
+		return DefaultTarget, nil
+	default:
+		return "", fmt.Errorf("unknown target %q (want touched or corrected)", s)
+	}
+}
+
+// MinCorrectedFiles is the fewest corrected files a case needs to be scorable
+// on the corrective target.
+//
+// Lower than MinFiles because corrective commits are a small fraction of a
+// newcomer's output. Measured over the pinned corpus — 114 cases across 26
+// repositories — the distribution is:
+//
+//	0 corrected files   56 cases
+//	1 corrected file     9 cases
+//	2 or more           49 cases   (43% of the corpus)
+//
+// The median newcomer corrects one pre-existing file in ninety days. Requiring
+// three would leave a number computed on the contributors who broke the most
+// things, which is a different population rather than a smaller sample of the
+// same one. Two is the lowest bar at which a single commit cannot be the whole
+// result.
+//
+// 43% is a real limit on this target, not a tuning knob, and it should be
+// stated wherever the corrective number is. Raising this constant to rescue a
+// disappointing result would be selecting the population that gives the answer.
+const MinCorrectedFiles = 2
+
+// Scorable reports whether this case has enough ground truth for a target.
+func (c Case) Scorable(t Target) bool {
+	if t == TargetCorrected {
+		return len(c.Corrected) >= MinCorrectedFiles
+	}
+	return len(c.TouchedExisting) > 0
 }
 
 // CaseOptions bound which contributors make usable cases.
@@ -104,6 +181,7 @@ func FindCases(ctx context.Context, root string, h vcs.History, opts CaseOptions
 
 		touched := make(map[string]bool)
 		touchedExisting := make(map[string]bool)
+		corrected := make(map[string]bool)
 		for _, c := range commits[idx:] {
 			if c.When.After(deadline) {
 				break
@@ -111,13 +189,18 @@ func FindCases(ctx context.Context, root string, h vcs.History, opts CaseOptions
 			if c.Author() != who {
 				continue
 			}
+			corrective := c.IsFix() || c.IsRevert()
 			for _, f := range c.Files {
 				if !isSource(f.Path) {
 					continue
 				}
 				touched[f.Path] = true
-				if existing[f.Path] {
-					touchedExisting[f.Path] = true
+				if !existing[f.Path] {
+					continue
+				}
+				touchedExisting[f.Path] = true
+				if corrective {
+					corrected[f.Path] = true
 				}
 			}
 		}
@@ -134,6 +217,7 @@ func FindCases(ctx context.Context, root string, h vcs.History, opts CaseOptions
 			RewindTo:        commits[idx-1].Hash,
 			Touched:         sortedKeys(touched),
 			TouchedExisting: sortedKeys(touchedExisting),
+			Corrected:       sortedKeys(corrected),
 		})
 	}
 

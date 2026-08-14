@@ -44,6 +44,25 @@ type CaseResult struct {
 	// Gate A number quoted without it is not reproducible, and the rule is
 	// worth four to five points.
 	Collapse Collapse
+	// Target records what this case was graded against.
+	Target Target
+}
+
+// UnscorableError marks a case skipped because it has too little ground truth
+// for the chosen target.
+//
+// Distinct from a degraded index and from an ordinary failure: nothing went
+// wrong here, and nothing about the ranking was measured. Counting these as
+// failures would make the corrective target look like it breaks the harness,
+// when what it does is ask a question most cases cannot answer.
+type UnscorableError struct {
+	Target Target
+	Have   int
+}
+
+func (e *UnscorableError) Error() string {
+	return fmt.Sprintf("not scorable on the %s target: %d files, need %d",
+		e.Target, e.Have, MinCorrectedFiles)
 }
 
 // DegradedError marks a case discarded because its index was too incomplete
@@ -112,6 +131,9 @@ type RunOptions struct {
 	// Collapse is how symbol scores become file scores for every lectio
 	// variant. Empty means DefaultCollapse.
 	Collapse Collapse
+	// Target is what predictions are graded against. Empty means
+	// DefaultTarget, the spec's primary measure.
+	Target Target
 	// WorkDir holds the temporary worktrees. Empty means the system temp dir.
 	WorkDir string
 	// ModuleTimeout bounds the dependency fetch per case. Zero means the
@@ -171,7 +193,19 @@ func RunCase(ctx context.Context, c Case, opts RunOptions) CaseResult {
 	if opts.Collapse == "" {
 		opts.Collapse = DefaultCollapse
 	}
-	res := CaseResult{Case: c, Collapse: opts.Collapse}
+	if opts.Target == "" {
+		opts.Target = DefaultTarget
+	}
+	res := CaseResult{Case: c, Collapse: opts.Collapse, Target: opts.Target}
+
+	// Checked before the expensive part. Rewinding and indexing a revision to
+	// score it against an empty ground truth costs minutes and produces a zero
+	// that means "this contributor broke nothing", not "the ranking missed".
+	if !c.Scorable(opts.Target) {
+		res.Err = &UnscorableError{Target: opts.Target, Have: len(c.Ground(opts.Target))}
+		res.Elapsed = time.Since(start)
+		return res
+	}
 
 	tree, cleanup, err := addWorktree(ctx, c.Repo, c.RewindTo, opts.WorkDir)
 	if err != nil {
@@ -229,17 +263,18 @@ func RunCase(ctx context.Context, c Case, opts RunOptions) CaseResult {
 	// identical band boundaries. Deriving them per strategy would let two rows
 	// of the same table mean different things by "Q4".
 	sizes := FileSizes(v)
+	ground := c.Ground(opts.Target)
 
 	for _, s := range strategies {
 		predicted := s.RankFiles(v, p)
 		res.Scores = append(res.Scores, Score{
 			Strategy:  s.Name(),
-			Precision: PrecisionAt(predicted, c.TouchedExisting, opts.K),
-			Recall:    RecallAt(predicted, c.TouchedExisting, opts.K),
-			MRR:       MeanReciprocalRank(predicted, c.TouchedExisting),
+			Precision: PrecisionAt(predicted, ground, opts.K),
+			Recall:    RecallAt(predicted, ground, opts.K),
+			MRR:       MeanReciprocalRank(predicted, ground),
 			Predicted: truncate(predicted, opts.K),
 		})
-		for _, ss := range scoreStrata(predicted, c.TouchedExisting, sizes, opts.K) {
+		for _, ss := range scoreStrata(predicted, ground, sizes, opts.K) {
 			ss.Strategy = s.Name()
 			res.Strata = append(res.Strata, ss)
 		}
@@ -339,7 +374,13 @@ type Report struct {
 	// Degraded counts the subset of Failed discarded for a thin index. A run
 	// where this is large is not measuring ranking quality, whatever number it
 	// prints, and the report says so rather than leaving it to be inferred.
-	Degraded   int
+	Degraded int
+	// Unscorable counts the subset skipped for lack of ground truth on the
+	// chosen target. Reported apart from Degraded because it says something
+	// about the question, not about the corpus or the run.
+	Unscorable int
+	// Target is what these cases were graded against.
+	Target     Target
 	K          int
 	Aggregates []Aggregate
 	// Medians is the median precision per strategy, keyed by name.
@@ -392,11 +433,19 @@ func Summarize(results []CaseResult, k int) Report {
 			if errors.As(r.Err, &degraded) {
 				rep.Degraded++
 			}
+			var unscorable *UnscorableError
+			if errors.As(r.Err, &unscorable) {
+				rep.Unscorable++
+				if rep.Target == "" {
+					rep.Target = unscorable.Target
+				}
+			}
 			continue
 		}
 		rep.Cases++
 		if rep.Collapse == "" {
 			rep.Collapse = r.Collapse
+			rep.Target = r.Target
 		}
 		for _, s := range r.Scores {
 			if _, seen := precisions[s.Strategy]; !seen {

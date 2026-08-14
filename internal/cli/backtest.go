@@ -33,12 +33,18 @@ func runBacktest(ctx context.Context, env *Env, args []string) error {
 		ablate    = fs.Bool("ablate", false, "also score the ranking with each signal disabled in turn")
 		collapse  = fs.String("collapse", string(backtest.DefaultCollapse),
 			"how symbol scores become file scores: max, mean, or sum")
+		target = fs.String("target", string(backtest.DefaultTarget),
+			"what to grade against: touched files, or the ones they had to correct")
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 
 	collapseRule, err := backtest.ParseCollapse(*collapse)
+	if err != nil {
+		return err
+	}
+	targetVar, err := backtest.ParseTarget(*target)
 	if err != nil {
 		return err
 	}
@@ -62,6 +68,7 @@ func runBacktest(ctx context.Context, env *Env, args []string) error {
 	runOpts := backtest.DefaultRunOptions()
 	runOpts.K = *k
 	runOpts.Collapse = collapseRule
+	runOpts.Target = targetVar
 	if *offline {
 		runOpts.ModuleTimeout = -1
 	}
@@ -172,6 +179,14 @@ func renderReport(env *Env, r backtest.Report) {
 	if r.Degraded > 0 {
 		env.out("%s", env.warn(fmt.Sprintf(
 			"  %d of those were discarded for a thin index — their revisions did not type-check", r.Degraded)))
+	}
+	if r.Unscorable > 0 {
+		env.out("%s", env.warn(fmt.Sprintf(
+			"  %d had too little ground truth on the %s target to score", r.Unscorable, r.Target)))
+	}
+	if r.Target != "" && r.Target != backtest.DefaultTarget {
+		env.out("%s", env.dim(fmt.Sprintf(
+			"  graded against %s files, not the spec's primary measure", r.Target)))
 	}
 	env.out("")
 	env.out("  %-26s %10s %10s %10s %8s", "strategy", "prec@"+itoa(r.K), "recall", "MRR", "median")
