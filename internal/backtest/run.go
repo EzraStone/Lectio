@@ -123,6 +123,11 @@ func indexAt(ctx context.Context, tree string, asOf time.Time) (*index.View, err
 	opts := adapter.DefaultOptions()
 	opts.RunTests = false // never execute code from an arbitrary historical revision
 	opts.HistoryWindow = 365 * 24 * time.Hour
+	// Anchor the window at the rewind date. Without this the window is
+	// [today-12mo, today], which for a repository rewound to 2018 contains no
+	// commits at all — every history signal goes silent and the ranking
+	// degrades to structure while still reporting a number.
+	opts.AsOf = asOf
 
 	if _, err := index.Build(ctx, s, a, tree, opts); err != nil {
 		return nil, fmt.Errorf("index rewound tree: %w", err)

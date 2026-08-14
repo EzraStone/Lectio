@@ -65,9 +65,13 @@ func Build(ctx context.Context, s *store.Store, a adapter.LanguageAdapter, root 
 		coverage = nil
 	}
 
+	asOf := opts.AsOf
+	if asOf.IsZero() {
+		asOf = time.Now()
+	}
 	since := time.Time{}
 	if opts.HistoryWindow > 0 {
-		since = time.Now().Add(-opts.HistoryWindow)
+		since = asOf.Add(-opts.HistoryWindow)
 	}
 	commits, err := a.FileHistory(ctx, root, since)
 	if err != nil {

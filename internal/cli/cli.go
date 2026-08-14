@@ -50,6 +50,7 @@ func commands() []*Command {
 		indexCmd(),
 		pathCmd(),
 		probeCmd(),
+		backtestCmd(),
 	}
 }
 

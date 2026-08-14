@@ -72,6 +72,16 @@ type Options struct {
 	// churn window the ranking signals assume.
 	HistoryWindow time.Duration
 
+	// AsOf is the moment to treat as "now" when computing the history window.
+	// Zero means the wall clock.
+	//
+	// This exists for the backtest, and it is load-bearing there. Rewinding a
+	// repository to 2018 and then reading "the last twelve months" against
+	// today's date returns nothing at all — every history-derived signal goes
+	// silent and the ranking quietly degrades to structure alone, while still
+	// reporting a number.
+	AsOf time.Time
+
 	// MaxPackages caps analysis breadth; 0 means unlimited.
 	MaxPackages int
 }
