@@ -133,18 +133,18 @@ func resolveSymbol(v *index.View, query string) (core.Symbol, error) {
 		return sym, nil
 	}
 
-	lower := strings.ToLower(query)
-	var matches []core.Symbol
-	for _, sym := range v.Symbols {
-		if sym.IsTest() {
-			continue
-		}
-		if strings.ToLower(sym.ID.Short()) == lower || strings.ToLower(sym.Name) == lower {
-			matches = append(matches, sym)
+	// Case-sensitive first. Go identifiers are case-sensitive, so normalize and
+	// Normalize are different symbols, and folding case would report a false
+	// ambiguity between two things the language considers unrelated — and
+	// between one the caller can reach and one they cannot.
+	matches := matchSymbols(v, query, false)
+	if len(matches) != 1 {
+		if folded := matchSymbols(v, query, true); len(folded) > 0 {
+			matches = folded
 		}
 	}
-	sort.Slice(matches, func(i, j int) bool { return matches[i].ID < matches[j].ID })
 
+	lower := strings.ToLower(query)
 	switch len(matches) {
 	case 1:
 		return matches[0], nil
@@ -213,6 +213,26 @@ func printHops(env *Env, v *index.View, found map[string]int) {
 		}
 		env.out("")
 	}
+}
+
+// matchSymbols returns production symbols whose short id or name equals query.
+func matchSymbols(v *index.View, query string, fold bool) []core.Symbol {
+	eq := func(a, b string) bool { return a == b }
+	if fold {
+		eq = strings.EqualFold
+	}
+
+	var out []core.Symbol
+	for _, sym := range v.Symbols {
+		if sym.IsTest() {
+			continue
+		}
+		if eq(sym.ID.Short(), query) || eq(sym.Name, query) {
+			out = append(out, sym)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out
 }
 
 func pluralHop(n int) string {

@@ -90,6 +90,29 @@ func TestDepsSuggestsNearMisses(t *testing.T) {
 	}
 }
 
+// Go identifiers are case-sensitive, so folding case reports a false
+// ambiguity between two symbols the language considers unrelated. Found by
+// running this against Lectio's own repo, where probe.normalize and
+// rank.Normalize both exist.
+func TestDepsPrefersExactCase(t *testing.T) {
+	dir := indexedRepo(t)
+
+	// The fixture has Parse (exported) and parseInterval (not). An exact-case
+	// query must resolve rather than complain.
+	code, out, errOut := run(t, "deps", "Parse", dir)
+	if code != 0 {
+		t.Fatalf("exact-case query failed: %d %q", code, errOut)
+	}
+	if !strings.Contains(out, "sample.Parse") {
+		t.Errorf("resolved to the wrong symbol:\n%s", out)
+	}
+
+	// A query differing only in case still resolves, via the fallback.
+	if code, _, errOut := run(t, "deps", "parse", dir); code != 0 {
+		t.Errorf("case-insensitive fallback failed: %d %q", code, errOut)
+	}
+}
+
 func TestDepsUnknownSymbol(t *testing.T) {
 	dir := indexedRepo(t)
 

@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Several tests build real git repositories and read their history.
+          # A shallow clone is fine for those, but the backtest reads deep
+          # history, so fetch it all.
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Configure git identity
+        # The vcs and index tests shell out to `git commit`, which refuses to
+        # run without an identity configured.
+        run: |
+          git config --global user.name "CI"
+          git config --global user.email "ci@example.com"
+          git config --global init.defaultBranch main
+
+      - name: gofmt
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "These files need gofmt:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: Build
+        run: go build ./...
+
+      - name: Test
+        run: go test -race -timeout 20m ./...
+
+  smoke:
+    # An end-to-end run against this repository. Unit tests can all pass while
+    # the binary fails on a real codebase, and that failure is the one that
+    # matters — the whole product is "point it at a repo".
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Build the binary
+        run: go build -o bin/lectio ./cmd/lectio
+
+      - name: Index this repository
+        run: ./bin/lectio index .
+
+      - name: Produce a reading path
+        run: ./bin/lectio path --top 10 .
+
+      - name: Check the JSON output parses
+        run: ./bin/lectio path --json --top 5 . | python3 -m json.tool > /dev/null
+
+      - name: Answer the blast-radius question
+        run: ./bin/lectio deps rank.Normalize .
