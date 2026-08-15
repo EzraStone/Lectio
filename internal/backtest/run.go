@@ -146,6 +146,15 @@ type RunOptions struct {
 	Target Target
 	// WorkDir holds the temporary worktrees. Empty means the system temp dir.
 	WorkDir string
+	// Workers is how many cases run at once. Zero means one.
+	//
+	// Each case is an independent worktree, module download and type-check, so
+	// they parallelize cleanly — but only up to a point. `go mod download`
+	// writes to a shared module cache, and type-checking a large repository is
+	// memory-hungry enough that too many at once trades wall-clock for
+	// swapping. Left at one by default, because a backtest that quietly
+	// exhausts a laptop is worse than a slow one.
+	Workers int
 	// ModuleTimeout bounds the dependency fetch per case. Zero means the
 	// default; negative disables fetching entirely, for offline runs.
 	ModuleTimeout time.Duration

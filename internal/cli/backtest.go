@@ -37,6 +37,8 @@ func runBacktest(ctx context.Context, env *Env, args []string) error {
 			"what to grade against: touched, corrected, symbols, or corrected-symbols")
 		coupling = fs.Bool("coupling", false,
 			"run the second backtest instead: does hidden coupling predict where newcomers go wrong?")
+		workers = fs.Int("workers", 1,
+			"cases to run at once; each one type-checks a whole repository, so raise this carefully")
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -75,6 +77,7 @@ func runBacktest(ctx context.Context, env *Env, args []string) error {
 	runOpts.K = *k
 	runOpts.Collapse = collapseRule
 	runOpts.Target = targetVar
+	runOpts.Workers = *workers
 	if *offline {
 		runOpts.ModuleTimeout = -1
 	}
@@ -107,20 +110,24 @@ func runBacktest(ctx context.Context, env *Env, args []string) error {
 			continue
 		}
 
-		for _, c := range cases {
-			if *verbose {
-				env.note("%s %s · %s · %d files touched",
-					env.dim("case:"), shortRepo(root), c.Contributor, len(c.TouchedExisting))
+		// Progress is reported on completion rather than on start. With
+		// workers > 1 a "starting" line would interleave with other workers'
+		// results and read as though the wrong case had failed.
+		repoName := shortRepo(root)
+		done := func(res backtest.CaseResult) {
+			if !*verbose {
+				return
 			}
-			res := backtest.RunCase(ctx, c, runOpts)
-			if res.Err != nil && *verbose {
+			env.note("%s %s · %s · %d files touched",
+				env.dim("case:"), repoName, res.Case.Contributor, len(res.Case.TouchedExisting))
+			if res.Err != nil {
 				env.note("  %s %v", env.warn("failed:"), res.Err)
 			}
-			results = append(results, res)
+		}
+		results = append(results, backtest.RunCases(ctx, cases, runOpts, done)...)
 
-			if err := ctx.Err(); err != nil {
-				return err
-			}
+		if err := ctx.Err(); err != nil {
+			return err
 		}
 	}
 
