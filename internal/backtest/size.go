@@ -203,6 +203,9 @@ func (b BandComparison) Tight() bool { return b.Spread > 0 && b.Spread <= TightS
 // question: when largest-files wins, is it choosing better files or just
 // bigger ones?
 type SizeReading struct {
+	// Incumbent names the size strategy being compared against, which differs
+	// by granularity.
+	Incumbent      string
 	OverallLectio  float64
 	OverallLargest float64
 	Bands          []BandComparison
@@ -233,9 +236,17 @@ type SizeReading struct {
 // largest-files also wins band by band, size is not an artifact of the metric
 // and the ranking is genuinely behind.
 func ReadStrata(rep Report) SizeReading {
-	const incumbent = "largest files"
+	// Whichever size strategy is the one to beat at this granularity. On a
+	// symbolic run that is largest-symbols: comparing against largest-files
+	// there produces a reassuring line about a strategy nobody is worried
+	// about, while the one that actually outscored lectio goes unmentioned.
+	incumbent := "largest files"
+	if rep.Target.Symbolic() {
+		incumbent = LargestSymbols{}.Name()
+	}
 
 	var r SizeReading
+	r.Incumbent = incumbent
 	for _, a := range rep.Aggregates {
 		switch a.Strategy {
 		case DefaultVariant:
@@ -305,28 +316,28 @@ func readingNote(r SizeReading) string {
 
 	case r.LectioWins == n:
 		return fmt.Sprintf(
-			"largest files leads overall while losing all %d size bands — the metric is "+
-				"rewarding size, not better choices", n)
+			"%s leads overall while losing all %d size bands — the metric is "+
+				"rewarding size, not better choices", r.Incumbent, n)
 
 	// Losing every band, but by nothing once size is held tight. The ranking
 	// is not making worse choices; it is making the same ones, which is the
 	// more precise and less flattering finding of the two.
 	case r.LectioWins == 0 && r.TightBands > 0 && -r.TightGap < negligibleGap:
 		return fmt.Sprintf(
-			"largest files leads every band, but by %.1f pp across the %d bands where size "+
+			"%s leads every band, but by %.1f pp across the %d bands where size "+
 				"is actually controlled — the ranking is not losing on choices, it is adding "+
 				"nothing over size",
-			-r.TightGap*100, r.TightBands)
+			r.Incumbent, -r.TightGap*100, r.TightBands)
 
 	case r.LectioWins == 0:
 		return fmt.Sprintf(
-			"largest files leads in all %d size bands — its advantage is not an artifact "+
-				"of the metric", n)
+			"%s leads in all %d size bands — its advantage is not an artifact "+
+				"of the metric", r.Incumbent, n)
 
 	default:
 		return fmt.Sprintf(
-			"largest files leads overall; lectio wins %d of %d size bands — mixed, and not "+
-				"enough to settle it", r.LectioWins, n)
+			"%s leads overall; lectio wins %d of %d size bands — mixed, and not "+
+				"enough to settle it", r.Incumbent, r.LectioWins, n)
 	}
 }
 

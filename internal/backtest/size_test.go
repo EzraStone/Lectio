@@ -317,3 +317,52 @@ func TestVerdictDoesNotCryWolfOnACleanPass(t *testing.T) {
 		t.Errorf("a clean pass was flagged: %+v", v)
 	}
 }
+
+// At symbol granularity the strategy to beat is largest-symbols, not
+// largest-files. Comparing against the wrong one produced a reassuring
+// "lectio leads overall and in 3 of 4 size bands" while the control that
+// actually outscored it by two to one went unmentioned.
+func TestReadStrataComparesAgainstTheRightSizeStrategy(t *testing.T) {
+	rep := Report{
+		Cases:  75,
+		Target: TargetSymbols,
+		Aggregates: []Aggregate{
+			{Strategy: "lectio", PrecisionA: 0.105},
+			{Strategy: "largest files", PrecisionA: 0.069},
+			{Strategy: "largest symbols", PrecisionA: 0.228},
+		},
+	}
+	for q, p := range [][3]float64{
+		{0.110, 0.082, 0.103}, // lectio, largest files, largest symbols
+		{0.075, 0.075, 0.141},
+		{0.083, 0.076, 0.119},
+		{0.137, 0.146, 0.237},
+	} {
+		rep.Strata = append(rep.Strata,
+			StratumAggregate{Strategy: "lectio", Stratum: q, Cases: 75, Precision: p[0], Spread: 3},
+			StratumAggregate{Strategy: "largest files", Stratum: q, Cases: 75, Precision: p[1], Spread: 3},
+			StratumAggregate{Strategy: "largest symbols", Stratum: q, Cases: 75, Precision: p[2], Spread: 3},
+		)
+	}
+
+	got := ReadStrata(rep)
+	if got.Incumbent != "largest symbols" {
+		t.Fatalf("Incumbent = %q, want largest symbols", got.Incumbent)
+	}
+	// Lectio wins only the smallest band against largest symbols.
+	if got.LectioWins != 1 {
+		t.Errorf("LectioWins = %d against largest symbols, want 1", got.LectioWins)
+	}
+	if !strings.Contains(got.Note, "largest symbols") {
+		t.Errorf("the note names the wrong strategy: %q", got.Note)
+	}
+}
+
+// File targets must keep comparing against largest-files, which is the
+// strategy that beat lectio there.
+func TestReadStrataKeepsLargestFilesForFileTargets(t *testing.T) {
+	got := ReadStrata(stratReport(0.43, 0.48, [][2]float64{{0.20, 0.10}, {0.30, 0.25}}))
+	if got.Incumbent != "largest files" {
+		t.Errorf("Incumbent = %q, want largest files", got.Incumbent)
+	}
+}
