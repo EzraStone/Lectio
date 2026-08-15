@@ -67,7 +67,8 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: stable
+          check-latest: true
           cache: true
 
       - name: Build the binary
@@ -84,3 +85,12 @@ jobs:
 
       - name: Answer the blast-radius question
         run: ./bin/lectio deps rank.Normalize .
+
+      - name: Report the build, including the Go release
+        run: ./bin/lectio version
+
+      # The pins are what make a Gate A number reproducible, and they rot
+      # quietly — a force-push upstream is invisible until someone tries to
+      # quote a number over a corpus that no longer matches its manifest.
+      - name: Verify the corpus pins still resolve
+        run: ./bin/lectio corpus verify --manifest corpus/gate-a.json
