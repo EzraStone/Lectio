@@ -269,10 +269,7 @@ func renderReport(env *Env, r backtest.Report) {
 // strategy that wins overall while losing every band is winning on the size
 // composition of its top ten rather than on its choices.
 func renderStrata(env *Env, r backtest.Report) {
-	// The bands are quartiles of file size, which says nothing about a run
-	// graded in declarations. Rendering it anyway would put a table under a
-	// symbolic result that looks like it controls for something and does not.
-	if len(r.Strata) == 0 || r.Target.Symbolic() {
+	if len(r.Strata) == 0 {
 		return
 	}
 	reading := backtest.ReadStrata(r)
@@ -280,9 +277,16 @@ func renderStrata(env *Env, r backtest.Report) {
 		return
 	}
 
+	// Same arithmetic, different unit. Labelling a declaration-banded table as
+	// file sizes would describe a control the run did not apply.
+	unit, candidates := "file-size", "files"
+	if r.Target.Symbolic() {
+		unit, candidates = "declaration-size", "declarations"
+	}
+
 	env.out("")
-	env.out("%s", env.bold("Precision within file-size bands"))
-	env.out("%s", env.dim("  the same cases, split by how large the candidate files are"))
+	env.out("%s", env.bold("Precision within "+unit+" bands"))
+	env.out("%s", env.dim("  the same cases, split by how large the candidate "+candidates+" are"))
 	env.out("")
 
 	header := fmt.Sprintf("  %-26s", "strategy")
@@ -332,9 +336,9 @@ func renderStrata(env *Env, r backtest.Report) {
 	env.out("%s", spreadRow)
 
 	env.out("")
-	env.out("%s", env.dim("  Quartiles by lines spanned, equal by file count. Each band is scored at"))
+	env.out("%s", env.dim("  Quartiles by lines spanned, equal by "+candidates[:len(candidates)-1]+" count. Each band is scored at"))
 	env.out("%s", env.dim("  its own cutoff — at most half the band, so ordering still decides it."))
-	env.out("%s", env.dim("  A band with too few files, or none the contributor touched, is omitted."))
+	env.out("%s", env.dim("  A band with too few "+candidates+", or none the contributor touched, is omitted."))
 	env.out("%s", env.dim(fmt.Sprintf(
 		"  Equal by count is not equal by size: a band spanning more than %.0fx still", backtest.TightSpread)))
 	env.out("%s", env.dim("  carries size information, so a result there is weaker evidence than one"))

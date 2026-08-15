@@ -66,6 +66,11 @@ func scoreSymbolic(ctx context.Context, res *CaseResult, c Case, v *index.View, 
 	strategies = append(strategies, SymbolBaselines()...)
 	strategies = append(strategies, SymbolControls()...)
 
+	// Banded by declaration size, for the same reason the file targets are
+	// banded by file size: once a size heuristic wins, the question is whether
+	// it chooses better declarations or merely longer ones.
+	sizes := SymbolSizes(v)
+
 	want := symbolIDs(ground)
 	for _, s := range strategies {
 		predicted := symbolIDs(s.RankSymbols(v, p))
@@ -76,5 +81,9 @@ func scoreSymbolic(ctx context.Context, res *CaseResult, c Case, v *index.View, 
 			MRR:       MeanReciprocalRank(predicted, want),
 			Predicted: truncate(predicted, opts.K),
 		})
+		for _, ss := range scoreStrata(predicted, want, sizes, opts.K) {
+			ss.Strategy = s.Name()
+			res.Strata = append(res.Strata, ss)
+		}
 	}
 }
