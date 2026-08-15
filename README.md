@@ -63,6 +63,9 @@ go install github.com/EzraStone/Lectio/cmd/lectio@latest
 Requires Go 1.24+ and `git` on PATH. The binary is static — the SQLite driver
 is pure Go, so there is no cgo and nothing to link.
 
+`lectio version` prints the Go release it was built with, which is the first
+thing to check if a reading path looks wrong.
+
 ```sh
 cd ~/src/some-go-repo
 lectio index .        # analyze; writes .lectio/index.db
