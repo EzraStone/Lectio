@@ -80,6 +80,12 @@ The wall-clock trap has appeared three times in three different functions. If
 you write anything that reads `time.Now()` inside analysis, assume it is the
 fourth.
 
+**Check a clone, not your working tree.** Unanchored `.gitignore` rules have
+twice excluded real source — the main package and the corpus manifests — and
+neither was visible locally, because the files were there and everything
+worked. `make ci` runs against your tree; only `git clone` runs against the
+repository.
+
 ## Running the gate
 
 ```sh

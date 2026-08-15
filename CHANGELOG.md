@@ -62,6 +62,13 @@ the primary measure.
 
 ### Fixed
 
+- **The repository did not build from a clone.** Two unanchored `.gitignore`
+  rules silently excluded source: a bare `lectio` matched the `cmd/lectio/`
+  directory, so the main package was never committed, and `/corpus/` excluded
+  the pinned manifests every Gate A number was computed over. Both were
+  invisible from inside a working tree, where the files are present and every
+  command finds them. CI now asserts the tracked set, not the working tree.
+
 - The history window was anchored to the wall clock, so a rewind to 2018 read
   zero commits and every history baseline scored 0.0%.
 - The same wall-clock trap in the coupling check, which returned zero pairs for
