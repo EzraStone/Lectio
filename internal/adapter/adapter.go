@@ -101,3 +101,23 @@ func DefaultOptions() Options {
 type Configurable interface {
 	Configure(Options)
 }
+
+// SpanResolver maps changed line ranges to the declarations that span them.
+//
+// Optional, and deliberately not part of LanguageAdapter. The four required
+// methods are what indexing needs; this is what the backtest needs to grade at
+// symbol granularity, and an adapter that cannot do it should still be a
+// working adapter. Callers type-assert and fall back to file-level grading.
+//
+// It takes source bytes rather than a path because the source being resolved
+// is usually a historical revision that exists in git and not on disk.
+//
+// The names returned are local: "Parse" for a function, "(*Scheduler).Next"
+// for a method — the part of a core.SymbolID after the package path. A
+// resolver works from syntax alone and cannot know import paths, so joining
+// the two is the caller's job.
+type SpanResolver interface {
+	// ResolveSpans returns the local names of declarations overlapping any of
+	// the ranges. Order is source order; names do not repeat.
+	ResolveSpans(src []byte, ranges []core.LineRange) ([]string, error)
+}
