@@ -14,6 +14,7 @@ import (
 
 	"github.com/EzraStone/Lectio/internal/adapter"
 	golangadapter "github.com/EzraStone/Lectio/internal/adapter/golang"
+	"github.com/EzraStone/Lectio/internal/core"
 	"github.com/EzraStone/Lectio/internal/index"
 	"github.com/EzraStone/Lectio/internal/rank"
 	"github.com/EzraStone/Lectio/internal/store"
@@ -48,6 +49,9 @@ type CaseResult struct {
 	Collapse Collapse
 	// Target records what this case was graded against.
 	Target Target
+	// GroundSymbols is the attributed answer set for a symbolic target. Empty
+	// for file targets, where the ground truth is on the Case itself.
+	GroundSymbols []core.SymbolID
 }
 
 // UnscorableError marks a case skipped because it has too little ground truth
@@ -63,8 +67,12 @@ type UnscorableError struct {
 }
 
 func (e *UnscorableError) Error() string {
-	return fmt.Sprintf("not scorable on the %s target: %d files, need %d",
-		e.Target, e.Have, MinCorrectedFiles)
+	unit, need := "files", MinCorrectedFiles
+	if e.Target.Symbolic() {
+		unit, need = "symbols", MinSymbols
+	}
+	return fmt.Sprintf("not scorable on the %s target: %d %s, need %d",
+		e.Target, e.Have, unit, need)
 }
 
 // DegradedError marks a case discarded because its index was too incomplete
@@ -264,6 +272,12 @@ func RunCase(ctx context.Context, c Case, opts RunOptions) CaseResult {
 	// Computed once and shared, so every strategy is stratified against
 	// identical band boundaries. Deriving them per strategy would let two rows
 	// of the same table mean different things by "Q4".
+	if opts.Target.Symbolic() {
+		scoreSymbolic(ctx, &res, c, v, p, opts, tree)
+		res.Elapsed = time.Since(start)
+		return res
+	}
+
 	sizes := FileSizes(v)
 	ground := c.Ground(opts.Target)
 
