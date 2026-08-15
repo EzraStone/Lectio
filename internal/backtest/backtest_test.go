@@ -2,6 +2,7 @@ package backtest
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -450,5 +451,42 @@ func TestCaseSetFingerprintIsEmptyWhenNothingScored(t *testing.T) {
 	rep := Summarize([]CaseResult{{Err: &DegradedError{}}}, 10)
 	if rep.CaseSet != "" {
 		t.Errorf("CaseSet = %q on a run that scored nothing", rep.CaseSet)
+	}
+}
+
+// The text report is for people and may change freely. The JSON is a machine
+// interface, and a consumer that cannot tell which shape it received has to
+// guess from the fields present.
+func TestReportCarriesItsSchemaVersion(t *testing.T) {
+	rep := Summarize([]CaseResult{{
+		Case:   Case{Repo: "r", RewindTo: "a", Contributor: "x"},
+		Scores: []Score{{Strategy: "lectio", Precision: 0.5}},
+	}}, 10)
+
+	if rep.Schema != ReportSchema {
+		t.Errorf("Schema = %d, want %d", rep.Schema, ReportSchema)
+	}
+
+	b, err := json.Marshal(rep)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var raw map[string]any
+	if err := json.Unmarshal(b, &raw); err != nil {
+		t.Fatal(err)
+	}
+
+	// Field names are the contract. A rename is a schema bump, and these are
+	// the ones a consumer would key on.
+	for _, key := range []string{"schema", "cases", "aggregates", "verdict", "case_set", "target"} {
+		if _, ok := raw[key]; !ok {
+			t.Errorf("JSON is missing %q: %s", key, b)
+		}
+	}
+	// Go's default field names must not leak back in.
+	for _, gone := range []string{"Cases", "PrecisionA", "CaseSet"} {
+		if _, ok := raw[gone]; ok {
+			t.Errorf("Go field name %q leaked into the JSON", gone)
+		}
 	}
 }

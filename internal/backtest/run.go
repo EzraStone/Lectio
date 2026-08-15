@@ -391,31 +391,41 @@ func addWorktree(ctx context.Context, repo, rev, workDir string) (string, func()
 	return tree, cleanup, nil
 }
 
+// ReportSchema versions the JSON shape.
+//
+// The text report is for people and can change freely; the JSON is a machine
+// interface, and a consumer that cannot tell which shape it received has to
+// guess from the fields present. Bumped on any change that removes or renames
+// a field, never on an addition.
+const ReportSchema = 1
+
 // Report aggregates results across cases.
 type Report struct {
-	Cases int
+	// Schema is ReportSchema, emitted so a consumer can branch on it.
+	Schema int `json:"schema"`
+	Cases  int `json:"cases"`
 	// Failed counts cases that errored for any reason.
-	Failed int
+	Failed int `json:"failed"`
 	// Degraded counts the subset of Failed discarded for a thin index. A run
 	// where this is large is not measuring ranking quality, whatever number it
 	// prints, and the report says so rather than leaving it to be inferred.
-	Degraded int
+	Degraded int `json:"degraded"`
 	// Unscorable counts the subset skipped for lack of ground truth on the
 	// chosen target. Reported apart from Degraded because it says something
 	// about the question, not about the corpus or the run.
-	Unscorable int
+	Unscorable int `json:"unscorable"`
 	// Target is what these cases were graded against.
-	Target     Target
-	K          int
-	Aggregates []Aggregate
+	Target     Target      `json:"target"`
+	K          int         `json:"k"`
+	Aggregates []Aggregate `json:"aggregates"`
 	// Medians is the median precision per strategy, keyed by name.
-	Medians map[string]float64
+	Medians map[string]float64 `json:"medians"`
 	// Strata holds mean precision per strategy within each file-size quartile.
-	Strata []StratumAggregate
+	Strata []StratumAggregate `json:"strata"`
 	// Collapse is the symbol-to-file rule the scored cases ran under, carried
 	// up from them rather than passed in, so the report cannot claim a rule
 	// the run did not use.
-	Collapse Collapse
+	Collapse Collapse `json:"collapse"`
 	// CaseSet fingerprints exactly which cases were scored.
 	//
 	// Two runs of this harness are only comparable when this matches. Which
@@ -428,33 +438,33 @@ type Report struct {
 	// The alternative to printing this is a report that looks reproducible and
 	// is not, which is worse than one that admits when two numbers were
 	// computed over different populations.
-	CaseSet string
+	CaseSet string `json:"case_set"`
 	// Verdict states whether Gate A passed and why.
-	Verdict Verdict
+	Verdict Verdict `json:"verdict"`
 }
 
 // StratumAggregate is one strategy's mean precision inside one size band,
 // across every case where that band had enough files and at least one touched
 // file to make the number mean something.
 type StratumAggregate struct {
-	Strategy  string
-	Stratum   int
-	Label     string
-	Cases     int
-	Precision float64
+	Strategy  string  `json:"strategy"`
+	Stratum   int     `json:"stratum"`
+	Label     string  `json:"label"`
+	Cases     int     `json:"cases"`
+	Precision float64 `json:"precision"`
 	// Spread is the median within-band size ratio across those cases. A band
 	// spanning 20x has not controlled for size, and a win inside it is weak
 	// evidence of better choices.
-	Spread float64
+	Spread float64 `json:"spread"`
 }
 
 // Verdict is the go/no-go.
 type Verdict struct {
-	Passed bool
+	Passed bool `json:"passed"`
 	// Beaten lists baselines lectio outscored on mean precision@K.
-	Beaten []string
+	Beaten []string `json:"beaten"`
 	// Lost lists baselines it did not.
-	Lost []string
+	Lost []string `json:"lost"`
 	// OutscoredByControl lists controls that beat lectio.
 	//
 	// A control cannot fail the gate — the spec names four baselines and
@@ -462,8 +472,8 @@ type Verdict struct {
 	// a PASS printed beside a control that doubled lectio's precision is a
 	// technically-true headline, and the whole point of the controls is to
 	// make that visible rather than leave it in a table for someone to notice.
-	OutscoredByControl []string
-	Note               string
+	OutscoredByControl []string `json:"outscored_by_control"`
+	Note               string   `json:"note"`
 }
 
 // Hollow reports a pass that a control undercuts.
@@ -471,7 +481,7 @@ func (v Verdict) Hollow() bool { return v.Passed && len(v.OutscoredByControl) > 
 
 // Summarize turns per-case results into the report Gate A is decided on.
 func Summarize(results []CaseResult, k int) Report {
-	rep := Report{K: k, Medians: map[string]float64{}}
+	rep := Report{Schema: ReportSchema, K: k, Medians: map[string]float64{}}
 
 	precisions := map[string][]float64{}
 	recalls := map[string][]float64{}

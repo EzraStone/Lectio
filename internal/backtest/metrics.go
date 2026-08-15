@@ -97,14 +97,14 @@ func toSet(xs []string) map[string]bool {
 
 // Aggregate summarizes one strategy across many cases.
 type Aggregate struct {
-	Strategy   string
-	Cases      int
-	PrecisionA float64 // mean precision@10
-	RecallA    float64 // mean recall@10
-	MRR        float64
+	Strategy   string  `json:"strategy"`
+	Cases      int     `json:"cases"`
+	PrecisionA float64 `json:"precision"` // mean precision@10
+	RecallA    float64 `json:"recall"`    // mean recall@10
+	MRR        float64 `json:"mrr"`
 	// Wins counts cases where this strategy beat a comparison strategy. Filled
 	// in by the report, not by the aggregation.
-	Wins int
+	Wins int `json:"wins"`
 }
 
 // Mean folds per-case scores into an aggregate.
