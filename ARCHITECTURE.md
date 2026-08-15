@@ -241,6 +241,7 @@ Following the spec's phases:
 | 3 · Probe engine | Built |
 | Gate B · Week-two return rate | Needs users |
 | 4 · Coverage state and progress view | Partial (familiarity feeds ranking) |
+| — · Distribution | Static binaries for five platforms, on tag |
 | 5 · Task scoping | Built (`--task`) |
 | 6 · VS Code extension | Not started |
 | 7 · TypeScript adapter | Not started |
