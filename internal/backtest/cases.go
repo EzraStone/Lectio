@@ -28,6 +28,21 @@ type Case struct {
 	// TouchedExisting is Touched restricted to files that already existed at
 	// RewindTo. This is what predictions are scored against.
 	TouchedExisting []string
+	// Commits are the contributor's own commit hashes inside the horizon, in
+	// order. Symbol attribution needs to re-read each one's diff, which is far
+	// too much data to carry on a case; the hashes are enough to fetch it.
+	Commits []string
+	// CorrectiveCommits is the subset that were fixes or reverts.
+	CorrectiveCommits []string
+	// PathOrigins maps a path at any point in the horizon back to the path it
+	// had at RewindTo.
+	//
+	// Built by replaying *every* commit in the window, not only the
+	// contributor's. A file someone else renamed is still the file the
+	// newcomer later edited, and a tracker that only saw their own commits
+	// would lose it.
+	PathOrigins map[string]string
+
 	// Corrected is where their corrective commits landed: files touched by a
 	// fix or revert inside the horizon, again restricted to files that already
 	// existed.
@@ -42,11 +57,23 @@ type Case struct {
 }
 
 // Ground returns the file set a prediction is scored against under one target.
+//
+// Symbolic targets have no answer here: their ground truth is not known until
+// the rewound revision has been indexed, because attribution needs the symbol
+// table to match names against. RunCase fills it in.
 func (c Case) Ground(t Target) []string {
 	if t == TargetCorrected {
 		return c.Corrected
 	}
 	return c.TouchedExisting
+}
+
+// CommitsFor returns the hashes a symbolic target should attribute.
+func (c Case) CommitsFor(t Target) []string {
+	if t.Corrective() {
+		return c.CorrectiveCommits
+	}
+	return c.Commits
 }
 
 // Target names what a prediction is graded against.
@@ -58,7 +85,27 @@ const (
 	TargetTouched Target = "touched"
 	// TargetCorrected is the subset they had to fix or revert.
 	TargetCorrected Target = "corrected"
+	// TargetSymbols grades individual declarations rather than file paths.
+	//
+	// The reason it exists: every file-path measure carries file size as a
+	// prior, which is why all four baselines and both file targets behave the
+	// way they do. Symbols remove that prior — and it is where lectio's
+	// ranking natively works, since collapsing to files was only ever the
+	// harness's requirement.
+	TargetSymbols Target = "symbols"
+	// TargetCorrectedSymbols is the same, restricted to corrective commits.
+	TargetCorrectedSymbols Target = "corrected-symbols"
 )
+
+// SymbolTargets are the targets graded in symbols rather than file paths.
+func (t Target) Symbolic() bool {
+	return t == TargetSymbols || t == TargetCorrectedSymbols
+}
+
+// Corrective reports whether a target looks only at fixes and reverts.
+func (t Target) Corrective() bool {
+	return t == TargetCorrected || t == TargetCorrectedSymbols
+}
 
 // DefaultTarget is the spec's primary measure. The tiebreaker is reported
 // beside it, never in place of it — swapping the target after a failing run
@@ -68,12 +115,13 @@ const DefaultTarget = TargetTouched
 // ParseTarget validates a target name.
 func ParseTarget(s string) (Target, error) {
 	switch t := Target(s); t {
-	case TargetTouched, TargetCorrected:
+	case TargetTouched, TargetCorrected, TargetSymbols, TargetCorrectedSymbols:
 		return t, nil
 	case "":
 		return DefaultTarget, nil
 	default:
-		return "", fmt.Errorf("unknown target %q (want touched or corrected)", s)
+		return "", fmt.Errorf(
+			"unknown target %q (want touched, corrected, symbols, or corrected-symbols)", s)
 	}
 }
 
@@ -99,12 +147,31 @@ func ParseTarget(s string) (Target, error) {
 // disappointing result would be selecting the population that gives the answer.
 const MinCorrectedFiles = 2
 
+// MinSymbols is the fewest attributed symbols a case needs to be scored
+// symbolically.
+//
+// Higher than MinCorrectedFiles because symbols are finer: one file edit
+// usually resolves to several declarations, so the same contributor yields
+// more symbols than files. Three matches MinFiles, keeping the two granularities
+// asking for a comparable amount of evidence.
+const MinSymbols = 3
+
 // Scorable reports whether this case has enough ground truth for a target.
+//
+// Symbolic targets cannot be judged here — their ground truth needs an index —
+// so this reports whether there are commits worth attributing at all. A case
+// with no corrective commits will never produce corrective symbols.
 func (c Case) Scorable(t Target) bool {
-	if t == TargetCorrected {
+	switch t {
+	case TargetCorrected:
 		return len(c.Corrected) >= MinCorrectedFiles
+	case TargetSymbols:
+		return len(c.Commits) > 0
+	case TargetCorrectedSymbols:
+		return len(c.CorrectiveCommits) > 0
+	default:
+		return len(c.TouchedExisting) > 0
 	}
-	return len(c.TouchedExisting) > 0
 }
 
 // CaseOptions bound which contributors make usable cases.
@@ -182,14 +249,26 @@ func FindCases(ctx context.Context, root string, h vcs.History, opts CaseOptions
 		touched := make(map[string]bool)
 		touchedExisting := make(map[string]bool)
 		corrected := make(map[string]bool)
+		var hashes, correctiveHashes []string
+
+		// Renames are replayed over every commit in the window, including
+		// other people's. A file someone else moved is still the file this
+		// contributor later edited.
+		paths := NewPathTracker(existing)
+
 		for _, c := range commits[idx:] {
 			if c.When.After(deadline) {
 				break
 			}
+			paths.Observe(c)
 			if c.Author() != who {
 				continue
 			}
 			corrective := c.IsFix() || c.IsRevert()
+			hashes = append(hashes, c.Hash)
+			if corrective {
+				correctiveHashes = append(correctiveHashes, c.Hash)
+			}
 			for _, f := range c.Files {
 				if !isSource(f.Path) {
 					continue
@@ -210,14 +289,17 @@ func FindCases(ctx context.Context, root string, h vcs.History, opts CaseOptions
 		}
 
 		cases = append(cases, Case{
-			Repo:            root,
-			Contributor:     who,
-			FirstCommit:     first.Hash,
-			FirstSeen:       first.When,
-			RewindTo:        commits[idx-1].Hash,
-			Touched:         sortedKeys(touched),
-			TouchedExisting: sortedKeys(touchedExisting),
-			Corrected:       sortedKeys(corrected),
+			Repo:              root,
+			Contributor:       who,
+			FirstCommit:       first.Hash,
+			FirstSeen:         first.When,
+			RewindTo:          commits[idx-1].Hash,
+			Touched:           sortedKeys(touched),
+			TouchedExisting:   sortedKeys(touchedExisting),
+			Corrected:         sortedKeys(corrected),
+			Commits:           hashes,
+			CorrectiveCommits: correctiveHashes,
+			PathOrigins:       paths.Snapshot(),
 		})
 	}
 

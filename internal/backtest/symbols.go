@@ -151,3 +151,22 @@ func (p *PathTracker) Origin(path string) (string, bool) {
 func localName(sym core.Symbol) string {
 	return golangadapter.LocalName(sym)
 }
+
+// Snapshot copies the current mapping, so a case can carry it without holding
+// the tracker that produced it.
+func (p *PathTracker) Snapshot() map[string]string {
+	out := make(map[string]string, len(p.current))
+	for k, v := range p.current {
+		out[k] = v
+	}
+	return out
+}
+
+// PathTrackerFrom rebuilds a tracker from a snapshot.
+func PathTrackerFrom(origins map[string]string) *PathTracker {
+	p := &PathTracker{current: make(map[string]string, len(origins))}
+	for k, v := range origins {
+		p.current[k] = v
+	}
+	return p
+}
