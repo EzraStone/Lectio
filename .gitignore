@@ -14,9 +14,16 @@ lectio
 *.test
 coverage.txt
 
-# Backtest working directories and reports
-/corpus/
+# Backtest working directories and reports.
+#
+# Not /corpus/ — that directory holds the pinned manifests, which are the whole
+# reason a Gate A number is reproducible and must be tracked. The clone cache
+# lives outside the working tree (XDG cache by default), so there is nothing to
+# ignore here. The rule used to be /corpus/, and gate-a.json survived it only
+# by having been added first; a second manifest would have been silently
+# untracked.
 /backtest-out/
+/.lectio-cache/
 
 # Editor noise
 .idea/

@@ -1,0 +1,185 @@
+{
+  "version": 1,
+  "repos": [
+    {
+      "name": "charmbracelet/bubbletea",
+      "url": "https://github.com/charmbracelet/bubbletea.git",
+      "rev": "351d2159f8d8a85613aa2a6e98c8c63df3c98623",
+      "note": "TUI; active, high fix density"
+    },
+    {
+      "name": "charmbracelet/lipgloss",
+      "url": "https://github.com/charmbracelet/lipgloss.git",
+      "rev": "77047a83c800e97d198ed80825c7cc698cc6808c",
+      "note": "styling; small and active"
+    },
+    {
+      "name": "fatih/color",
+      "url": "https://github.com/fatih/color.git",
+      "rev": "820c6ebc21b06a3a5328297d556a87f91556e577",
+      "note": "small utility; long tail of contributors"
+    },
+    {
+      "name": "gin-gonic/gin",
+      "url": "https://github.com/gin-gonic/gin.git",
+      "rev": "34dac209ffb6ef85cc78c5d217bbb7ad001d68fd",
+      "note": "web framework; very large contributor base"
+    },
+    {
+      "name": "go-chi/chi",
+      "url": "https://github.com/go-chi/chi.git",
+      "rev": "8b258c7bb28f97a5f2a856ff7ef962578fec9215",
+      "note": "router; middleware packages co-change"
+    },
+    {
+      "name": "go-git/go-git",
+      "url": "https://github.com/go-git/go-git.git",
+      "rev": "ec5f6dc473fb511581eaa664d79fc25ea058201c",
+      "note": "many packages, deep call graph, active"
+    },
+    {
+      "name": "go-sql-driver/mysql",
+      "url": "https://github.com/go-sql-driver/mysql.git",
+      "rev": "fe209ccef7620ffe789efa17e7d2e8e05bc9e3c9",
+      "note": "driver; protocol code with steady fix density"
+    },
+    {
+      "name": "google/go-cmp",
+      "url": "https://github.com/google/go-cmp.git",
+      "rev": "b133f1f1932e48f466f597a3346ce6f5a49a0dc1",
+      "note": "comparison; careful codebase, few contributors"
+    },
+    {
+      "name": "google/go-github",
+      "url": "https://github.com/google/go-github.git",
+      "rev": "27edd67be20d896fd1255f135f5e1b43f0a47c4a",
+      "note": "large generated client; tests the generated-code gap"
+    },
+    {
+      "name": "google/uuid",
+      "url": "https://github.com/google/uuid.git",
+      "rev": "2d3c2a9cc518326daf99a383f07c4d3c44317e4d",
+      "note": "very small; expect FindCases to decline it"
+    },
+    {
+      "name": "gorilla/mux",
+      "url": "https://github.com/gorilla/mux.git",
+      "rev": "db9d1d0073d27a0a2d9a8c1bc52aa0af4374d265",
+      "note": "router; small, stable, many drive-by contributors"
+    },
+    {
+      "name": "gorilla/websocket",
+      "url": "https://github.com/gorilla/websocket.git",
+      "rev": "e064f32e3674d9d79a8fd417b5bc06fa5c6cad8f",
+      "note": "protocol code; long history, few files"
+    },
+    {
+      "name": "hashicorp/go-retryablehttp",
+      "url": "https://github.com/hashicorp/go-retryablehttp.git",
+      "rev": "fd004584a46724fae09e2f21d7c382e15c893f42",
+      "note": "small, single-purpose"
+    },
+    {
+      "name": "hashicorp/hcl",
+      "url": "https://github.com/hashicorp/hcl.git",
+      "rev": "6bf1a67a9381988ec9d660b405a83dfc8b5fcf2a",
+      "note": "parser; grammar and tests co-change without importing"
+    },
+    {
+      "name": "jmoiron/sqlx",
+      "url": "https://github.com/jmoiron/sqlx.git",
+      "rev": "41dac167fdad5e3fd81d66cafba0951dc6823a30",
+      "note": "thin wrapper; stable, few contributors"
+    },
+    {
+      "name": "julienschmidt/httprouter",
+      "url": "https://github.com/julienschmidt/httprouter.git",
+      "rev": "484018016424d215c0b87c42f4c9b57d980fbd00",
+      "note": "tiny; a control for repos with little to rank"
+    },
+    {
+      "name": "klauspost/compress",
+      "url": "https://github.com/klauspost/compress.git",
+      "rev": "dd6de45e8beb8833684fbafb4ecd06b0062dafa6",
+      "note": "compression; heavy generated and asm-adjacent code"
+    },
+    {
+      "name": "labstack/echo",
+      "url": "https://github.com/labstack/echo.git",
+      "rev": "05489dc1730161df26b72d1ae2a3ba6fb8178fc7",
+      "note": "web framework; comparable to gin"
+    },
+    {
+      "name": "mitchellh/mapstructure",
+      "url": "https://github.com/mitchellh/mapstructure.git",
+      "rev": "8508981c8b6c964e6986dd8aa85490e70ce3c2e2",
+      "note": "reflection-heavy; stresses static resolution"
+    },
+    {
+      "name": "pkg/errors",
+      "url": "https://github.com/pkg/errors.git",
+      "rev": "87f8819acf6dc28bf5d3c14b334268236d686f48",
+      "note": "tiny and frozen; a negative control"
+    },
+    {
+      "name": "rs/zerolog",
+      "url": "https://github.com/rs/zerolog.git",
+      "rev": "13073f1efa1d502bafc780de02dc480fb0831751",
+      "note": "logging; performance-driven churn"
+    },
+    {
+      "name": "sirupsen/logrus",
+      "url": "https://github.com/sirupsen/logrus.git",
+      "rev": "457e372460c7a80ca7c800b51ebeee5362aaa180",
+      "note": "logging; wide contributor base"
+    },
+    {
+      "name": "spf13/afero",
+      "url": "https://github.com/spf13/afero.git",
+      "rev": "768f1fb0e5535b77d90e44c531aacd652aabd96a",
+      "note": "filesystem abstraction; many small packages"
+    },
+    {
+      "name": "spf13/cobra",
+      "url": "https://github.com/spf13/cobra.git",
+      "rev": "adbc8813901bba65827259daa8e22ff94ec1f30e",
+      "note": "one dominant file, which stresses file-grained signals"
+    },
+    {
+      "name": "spf13/pflag",
+      "url": "https://github.com/spf13/pflag.git",
+      "rev": "4f8e9056816a26ecbac9fe26cde50968eb3626f8",
+      "note": "flags; very stable, mostly drive-by contributors"
+    },
+    {
+      "name": "spf13/viper",
+      "url": "https://github.com/spf13/viper.git",
+      "rev": "528f7416c4b56a4948673984b190bf8713f0c3c4",
+      "note": "config; heavy co-change between code and testdata"
+    },
+    {
+      "name": "stretchr/testify",
+      "url": "https://github.com/stretchr/testify.git",
+      "rev": "001eb7946baf451879253643e4ce4b38eaa0d4a7",
+      "note": "assertions; large generated surface"
+    },
+    {
+      "name": "uber-go/zap",
+      "url": "https://github.com/uber-go/zap.git",
+      "rev": "018b91390e74732e9e40f8d356887b8d06461886",
+      "note": "logging; many packages, strong test suite"
+    },
+    {
+      "name": "urfave/cli",
+      "url": "https://github.com/urfave/cli.git",
+      "rev": "c6f4cf7e9223793478cfcde9b8f135cc8f86e78f",
+      "note": "CLI framework; long history, several rewrites"
+    },
+    {
+      "name": "valyala/fasthttp",
+      "url": "https://github.com/valyala/fasthttp.git",
+      "rev": "046bc31116d28ef3ad1bf91f79574d4d28faf33b",
+      "note": "performance-driven; unusual call patterns"
+    }
+  ]
+}
