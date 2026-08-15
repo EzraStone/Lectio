@@ -71,6 +71,20 @@ jobs:
           check-latest: true
           cache: true
 
+      # Two source directories have been silently excluded by unanchored
+      # .gitignore rules — cmd/lectio, the main package, and corpus, the
+      # pinned manifests. Both were invisible from inside a working tree
+      # because the files were there; only a clone showed the repository
+      # could not build. This checks the tracked set, not the working tree.
+      - name: Every Go file is tracked
+        run: |
+          set -euo pipefail
+          missing=0
+          while IFS= read -r f; do
+            git ls-files --error-unmatch "$f" >/dev/null 2>&1 || { echo "untracked: $f"; missing=1; }
+          done < <(find . -name '*.go' -not -path './.git/*')
+          test "$missing" -eq 0
+
       - name: Build the binary
         run: go build -o bin/lectio ./cmd/lectio
 
