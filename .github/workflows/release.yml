@@ -1,0 +1,65 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  binaries:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - { goos: linux, goarch: amd64 }
+          - { goos: linux, goarch: arm64 }
+          - { goos: darwin, goarch: amd64 }
+          - { goos: darwin, goarch: arm64 }
+          - { goos: windows, goarch: amd64 }
+    steps:
+      - uses: actions/checkout@v4
+
+      # The Go release matters more here than in most projects. The type
+      # checker is compiled into the binary, so a release built with an older
+      # Go silently drops every package in any repository requiring a newer
+      # one — it warns, and the user gets a call graph missing everything in
+      # them. Building with the newest stable Go is what makes a published
+      # binary usable against current code.
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          check-latest: true
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          set -euo pipefail
+          name="lectio_${GOOS}_${GOARCH}"
+          [ "$GOOS" = windows ] && name="${name}.exe"
+          # -trimpath so the binary does not embed the runner's paths, and
+          # CGO_ENABLED=0 because the SQLite driver is pure Go — there is
+          # nothing to link and a static binary is the whole install story.
+          go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" \
+            -o "dist/${name}" ./cmd/lectio
+          ( cd dist && sha256sum "${name}" > "${name}.sha256" )
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lectio_${{ matrix.goos }}_${{ matrix.goarch }}
+          path: dist/*
+
+  publish:
+    needs: binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: dist, merge-multiple: true }
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

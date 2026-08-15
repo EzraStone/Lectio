@@ -53,6 +53,7 @@ func commands() []*Command {
 		probeCmd(),
 		backtestCmd(),
 		corpusCmd(),
+		versionCmd(),
 	}
 }
 
@@ -62,9 +63,12 @@ func Main(ctx context.Context, env *Env, args []string) int {
 		usage(env.Stdout)
 		return 0
 	}
-	if args[0] == "-version" || args[0] == "--version" || args[0] == "version" {
-		fmt.Fprintf(env.Stdout, "lectio %s\n", Version)
-		return 0
+	// The flag spellings are aliases for the subcommand rather than a second
+	// implementation. They used to print the version and nothing else, which
+	// left out the Go release — the one line anyone diagnosing a wrong-looking
+	// reading path needs first.
+	if args[0] == "-version" || args[0] == "--version" {
+		args[0] = "version"
 	}
 
 	name := args[0]
