@@ -34,7 +34,7 @@ func runBacktest(ctx context.Context, env *Env, args []string) error {
 		collapse  = fs.String("collapse", string(backtest.DefaultCollapse),
 			"how symbol scores become file scores: max, mean, or sum")
 		target = fs.String("target", string(backtest.DefaultTarget),
-			"what to grade against: touched files, or the ones they had to correct")
+			"what to grade against: touched, corrected, symbols, or corrected-symbols")
 		coupling = fs.Bool("coupling", false,
 			"run the second backtest instead: does hidden coupling predict where newcomers go wrong?")
 	)
@@ -177,7 +177,10 @@ func renderReport(env *Env, r backtest.Report) {
 	env.out("")
 	headline := fmt.Sprintf("Gate A · %d cases scored, %d discarded", r.Cases, r.Failed)
 	env.out("%s", env.bold(headline))
-	if r.Collapse != "" {
+	// Only meaningful when there was a collapse. A symbolic run never reduces
+	// symbols to files, and printing a rule it did not apply is a small lie in
+	// the one place a report is supposed to be exact.
+	if r.Collapse != "" && !r.Target.Symbolic() {
 		// Stated, not assumed. The rule is worth several points, so a number
 		// quoted without it cannot be reproduced or compared to another run.
 		env.out("%s", env.dim(fmt.Sprintf("  symbol scores collapsed to files by %s", r.Collapse)))
@@ -197,8 +200,18 @@ func renderReport(env *Env, r backtest.Report) {
 			"  %d had too little ground truth on the %s target to score", r.Unscorable, r.Target)))
 	}
 	if r.Target != "" && r.Target != backtest.DefaultTarget {
+		// Worth naming plainly: a precision@10 over declarations is not
+		// comparable with one over file paths, and a reader scanning two
+		// reports would otherwise assume it was.
+		what := string(r.Target) + " files"
+		if r.Target.Symbolic() {
+			what = "declarations, not file paths"
+			if r.Target == backtest.TargetCorrectedSymbols {
+				what = "declarations they had to correct, not file paths"
+			}
+		}
 		env.out("%s", env.dim(fmt.Sprintf(
-			"  graded against %s files, not the spec's primary measure", r.Target)))
+			"  graded against %s — not the spec's primary measure", what)))
 	}
 	env.out("")
 	env.out("  %-26s %10s %10s %10s %8s", "strategy", "prec@"+itoa(r.K), "recall", "MRR", "median")
@@ -245,7 +258,10 @@ func renderReport(env *Env, r backtest.Report) {
 // strategy that wins overall while losing every band is winning on the size
 // composition of its top ten rather than on its choices.
 func renderStrata(env *Env, r backtest.Report) {
-	if len(r.Strata) == 0 {
+	// The bands are quartiles of file size, which says nothing about a run
+	// graded in declarations. Rendering it anyway would put a table under a
+	// symbolic result that looks like it controls for something and does not.
+	if len(r.Strata) == 0 || r.Target.Symbolic() {
 		return
 	}
 	reading := backtest.ReadStrata(r)
