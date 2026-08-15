@@ -131,6 +131,19 @@ Adding a language is one implementation of this interface plus an `init()` that
 registers it. Ranking, probes, ordering and state are all language-agnostic and
 sit above the seam — the Go-first bet costs one adapter, not the product.
 
+One capability sits beside the interface rather than in it:
+
+```go
+type SpanResolver interface {
+    ResolveSpans(src []byte, ranges []core.LineRange) ([]string, error)
+}
+```
+
+Symbol-level grading needs it; indexing does not. Keeping it optional means an
+adapter without it is still a working adapter — callers type-assert and fall
+back to file-level grading. It takes source bytes rather than a path because
+what it resolves is a historical revision that exists in git and not on disk.
+
 ### Why Go first
 
 Not the biggest market. But v1 hinges on ground-truth grading, and ground truth
