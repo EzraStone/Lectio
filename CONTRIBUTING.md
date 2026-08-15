@@ -66,8 +66,7 @@ record of a bug that a test alone would not explain.
 ## Tests
 
 ```sh
-make test
-make vet
+make ci     # what CI checks: gofmt, vet, tests, build
 ```
 
 Many tests are tripwires named after the failure they prevent rather than the

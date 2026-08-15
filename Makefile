@@ -1,7 +1,7 @@
 BINARY := lectio
 PKG    := ./...
 
-.PHONY: build test vet fmt tidy clean install corpus gate-a gate-a-corrected gate-a-symbols coupling
+.PHONY: build test vet fmt fmt-check tidy clean install ci corpus gate-a gate-a-corrected gate-a-symbols coupling
 
 build:
 	go build -o bin/$(BINARY) ./cmd/lectio
@@ -14,6 +14,17 @@ vet:
 
 fmt:
 	gofmt -l -w .
+
+# What CI checks, without rewriting anything. Run this before pushing rather
+# than discovering the formatting job failed after the fact.
+fmt-check:
+	@unformatted="$$(gofmt -l .)"; \
+	if [ -n "$$unformatted" ]; then \
+		echo "These files need gofmt:"; echo "$$unformatted"; exit 1; \
+	fi
+
+# The same gates CI runs, in the same order.
+ci: fmt-check vet test build
 
 tidy:
 	go mod tidy
