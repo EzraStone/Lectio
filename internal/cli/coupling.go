@@ -48,9 +48,22 @@ func runCouplingCheck(ctx context.Context, env *Env, repos []string, caseOpts ba
 			env.note("%s %s", env.dim("indexing:"), shortRepo(root))
 		}
 
-		v, err := indexForCoupling(ctx, root)
+		v, health, err := indexForCoupling(ctx, root)
 		if err != nil {
 			env.note("%s %s: %v", env.warn("skipping"), shortRepo(root), err)
+			continue
+		}
+		// The same guard Gate A applies, and for a sharper reason. relatedness
+		// uses call edges to decide whether a co-change is already explained by
+		// a static dependency, so a repository that type-checks badly reports
+		// *more* hidden pairs than one that resolves cleanly — the signal is
+		// inflated by its own analysis failing. Measured at about 1% (go-git
+		// gave 235 pairs one run and 233 another), which did not matter to a
+		// result that came out at 1.02 and would matter a great deal to one
+		// that came out above 1.
+		if d := health.Degraded(); d > backtest.MaxDegraded {
+			env.note("%s %s: %.0f%% of packages failed to type-check — hidden pairs would be inflated",
+				env.warn("skipping"), shortRepo(root), d*100)
 			continue
 		}
 
@@ -111,16 +124,18 @@ func couplingParams(v *index.View) rank.Params {
 // Written to a temp directory rather than the repository's own .lectio, so
 // running the check against someone's corpus does not leave thirty index
 // databases scattered through it.
-func indexForCoupling(ctx context.Context, root string) (*index.View, error) {
+func indexForCoupling(ctx context.Context, root string) (*index.View, backtest.IndexHealth, error) {
+	var health backtest.IndexHealth
+
 	dbDir, err := os.MkdirTemp("", "lectio-coupling-")
 	if err != nil {
-		return nil, err
+		return nil, health, err
 	}
 	defer os.RemoveAll(dbDir)
 
 	s, err := store.Open(ctx, filepath.Join(dbDir, "index.db"))
 	if err != nil {
-		return nil, err
+		return nil, health, err
 	}
 	defer s.Close()
 
@@ -134,10 +149,20 @@ func indexForCoupling(ctx context.Context, root string) (*index.View, error) {
 	// throws away most of the evidence the check is meant to weigh.
 	opts.HistoryWindow = couplingWindow
 
-	if _, err := index.Build(ctx, s, a, root, opts); err != nil {
-		return nil, err
+	built, err := index.Build(ctx, s, a, root, opts)
+	if err != nil {
+		return nil, health, err
 	}
-	return index.Load(ctx, s)
+	health = backtest.IndexHealth{
+		PackagesLoaded: built.PackagesLoaded,
+		PackagesFailed: built.PackagesFailed,
+		Symbols:        built.Stats.Symbols,
+		CallEdges:      built.Stats.CallEdges,
+		Warnings:       built.Warnings,
+	}
+
+	v, err := index.Load(ctx, s)
+	return v, health, err
 }
 
 func renderCoupling(env *Env, rs []backtest.RepoCoupling, pooled backtest.CouplingResult) {
