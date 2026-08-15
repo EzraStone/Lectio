@@ -207,6 +207,8 @@ Changes to these are the ones that need the most thought:
 | `HiddenCoupling` guards | Removing the commit-size cap lets reformats become the entire signal |
 | `Params.Now` / `Options.AsOf` | Wall-clock reads make backtests report numbers they cannot repeat |
 | `backtest.Collapse` | The symbol-to-file rule is a size prior; max quietly reinstates the bug Gate A was measuring |
+| `SymbolBaselines` translation | Restating it after seeing a score is how the gate gets argued past |
+| `Baselines()` vs `Controls()` | A control that could fail the gate is a fifth baseline added after the fact |
 
 Several of these have tests written specifically as tripwires — a test named
 after the failure it prevents rather than the function it exercises. Those are
@@ -221,7 +223,7 @@ Following the spec's phases:
 | --- | --- |
 | 0 · Adapter interface and Go index | Built |
 | 1 · Ranking, all seven signals | Built |
-| **Gate A · Beat four baselines** | **Run at scale three times. Failed all three.** |
+| **Gate A · Beat four baselines** | **Run at scale six times. Failed all six.** |
 | 2 · Reading path CLI | Built |
 | 3 · Probe engine | Built |
 | Gate B · Week-two return rate | Needs users |
@@ -232,11 +234,12 @@ Following the spec's phases:
 | 8 · GitHub App | Not started |
 | 9 · Team aggregate view | Not started |
 
-Gate A is a hard stop, and it has now returned its number three times: once
-with the harness's own size bias removed, once against a size-controlled
-metric, and once against the spec's tiebreaker target. It failed all three.
-See [docs/gate-a-2026-08.md](docs/gate-a-2026-08.md). Nothing below the gate
-should be built on the current ranking.
+Gate A is a hard stop, and it has now returned its number six times: with the
+harness's own size bias removed, against a size-controlled metric, against the
+spec's tiebreaker target, with the differentiator measured directly, and twice
+graded in declarations rather than file paths. It failed all six. See
+[docs/gate-a-2026-08.md](docs/gate-a-2026-08.md). Nothing below the gate should
+be built on the current ranking.
 
 ## Running Gate A
 
@@ -244,6 +247,7 @@ should be built on the current ranking.
 make corpus            # clone corpus/gate-a.json, pinned (slow, once)
 make gate-a            # backtest with per-signal ablation
 make gate-a-corrected  # graded against files newcomers had to fix or revert
+make gate-a-symbols    # graded in declarations rather than file paths
 make coupling          # the second backtest, as lift rather than precision
 ```
 
@@ -300,6 +304,36 @@ it. The size-proportional draw is a control: it exists to explain a result, and
 adding a fifth strategy to the pass condition after seeing the score would be
 moving the goalposts. `decide()` reads only `Baselines()`, and a test asserts a
 control outscoring lectio still passes.
+
+### Symbol granularity
+
+Every file-path measure carries file size as a prior. Grading declarations
+removes it, and it is also what the ranker natively produces — collapsing to
+files was only ever the harness's requirement.
+
+Three pieces make it work, and the middle one is the interesting choice:
+
+1. `vcs.Git.Hunks` reads changed line ranges from `git diff -U0`, in
+   post-commit coordinates.
+2. `golang.ResolveSpans` parses the changed file *at the revision where the
+   change landed* — syntax only, no type checking — and maps each range to its
+   enclosing declaration. Microseconds per file, and it works on revisions that
+   do not build, which is most of a historical corpus.
+3. `backtest.AttributeSymbols` matches those declaration **names** against the
+   symbol table.
+
+Names rather than positions, because by the time a newcomer commits, the file
+has moved under them — often hundreds of lines. A regression test puts `Parse`
+at lines 3–5 in the index and 103–105 at commit time; any position-based match
+attributes that change to whatever now occupies lines 3–5. The known undercount
+is symbol renames, which biases toward reporting less evidence than exists.
+
+**The baseline translation was fixed before any symbol-level number existed.**
+Each file baseline inherits its own signal: "the biggest files" becomes "the
+symbols in the biggest files, in source order" — what the file-level baseline
+actually recommended — not "the biggest symbols". Choosing that afterwards is
+how a gate gets argued past. `LargestSymbols` exists as a *control* for exactly
+that reason, and it is what beat the ranking two to one.
 
 ### Size-stratified precision
 
