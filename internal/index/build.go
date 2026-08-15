@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/EzraStone/Lectio/internal/adapter"
+	golangadapter "github.com/EzraStone/Lectio/internal/adapter/golang"
 	"github.com/EzraStone/Lectio/internal/core"
 	"github.com/EzraStone/Lectio/internal/store"
 	"github.com/EzraStone/Lectio/internal/vcs"
@@ -137,6 +138,12 @@ func Build(ctx context.Context, s *store.Store, a adapter.LanguageAdapter, root 
 			if failed > 0 {
 				res.Warnings = append(res.Warnings, fmt.Sprintf(
 					"%d of %d packages failed to type-check; their call edges are missing", failed, loaded))
+				// A warning that does not name its own fix is a warning people
+				// learn to scroll past. This is the most common cause and the
+				// only one the user can act on in one command.
+				if fix := toolchainAdvice(root); fix != "" {
+					res.Warnings = append(res.Warnings, fix)
+				}
 			}
 		}
 	}
@@ -201,4 +208,26 @@ func deriveAuthorship(ctx context.Context, git *vcs.Git, root string, commits []
 		})
 	}
 	return out
+}
+
+// toolchainAdvice names the fix when the binary is older than the repository.
+//
+// The type checker is compiled in, so a 1.24 build silently drops every
+// package in a module declaring go 1.25 — it warns that packages failed and
+// leaves the reader to work out why. On go-git that was 19,005 call edges
+// instead of 36,615, which changes every centrality number without changing
+// anything visible.
+//
+// Returns empty when the versions are fine or unreadable, so this never
+// speculates about a cause it has not established.
+func toolchainAdvice(root string) string {
+	required := golangadapter.RequiredGo(root)
+	running := golangadapter.RunningGo()
+	if !golangadapter.TooOld(required, running) {
+		return ""
+	}
+	return fmt.Sprintf(
+		"this binary was built with Go %s and the module requires %s — the type checker is "+
+			"compiled in, so rebuild with: GOTOOLCHAIN=go%s go install github.com/EzraStone/Lectio/cmd/lectio@latest",
+		running, required, required)
 }
