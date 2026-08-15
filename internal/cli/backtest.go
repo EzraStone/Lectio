@@ -230,9 +230,20 @@ func renderReport(env *Env, r backtest.Report) {
 	}
 
 	env.out("")
-	if r.Verdict.Passed {
+	switch {
+	case r.Verdict.Hollow():
+		// A pass a control undercuts is the most misleading line a report can
+		// print, so it does not get printed green. The gate's rule is met and
+		// its purpose is not, and both halves belong on the same line.
+		env.out("%s %s", env.warn("PASS"), r.Verdict.Note)
+		for _, l := range wrap(
+			"A control is not a baseline and cannot fail the gate. It can show that the "+
+				"result does not mean what the verdict says — which is what it is doing here.", 68) {
+			env.out("%s", env.dim("  "+l))
+		}
+	case r.Verdict.Passed:
 		env.out("%s %s", env.good("PASS"), r.Verdict.Note)
-	} else {
+	default:
 		env.out("%s %s", env.bad("FAIL"), r.Verdict.Note)
 	}
 

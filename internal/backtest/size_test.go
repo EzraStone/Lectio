@@ -267,3 +267,53 @@ func TestControlsDoNotDecideTheGate(t *testing.T) {
 		t.Errorf("a control outscoring lectio failed the gate: %+v", v)
 	}
 }
+
+// The symbol-granularity run passed the gate while a control scored more than
+// double. A report that prints that in green is technically true and actively
+// misleading, which is the one thing a go/no-go must never be.
+func TestVerdictFlagsAPassAControlUndercuts(t *testing.T) {
+	rep := Report{
+		Cases: 75,
+		Aggregates: []Aggregate{
+			{Strategy: "lectio", PrecisionA: 0.105},
+			{Strategy: "largest files", PrecisionA: 0.069},
+			{Strategy: "most churned, 12mo", PrecisionA: 0.083},
+			{Strategy: "most recently modified", PrecisionA: 0.047},
+			{Strategy: "most distinct authors", PrecisionA: 0.065},
+			{Strategy: "largest symbols", PrecisionA: 0.228},
+		},
+	}
+	v := decide(rep)
+
+	if !v.Passed {
+		t.Fatal("lectio beat all four baselines and should pass the gate as written")
+	}
+	if !v.Hollow() {
+		t.Fatal("a control scoring more than double did not register")
+	}
+	if len(v.OutscoredByControl) != 1 || v.OutscoredByControl[0] != "largest symbols" {
+		t.Errorf("OutscoredByControl = %v", v.OutscoredByControl)
+	}
+	if !strings.Contains(v.Note, "control") {
+		t.Errorf("the note does not mention the control: %q", v.Note)
+	}
+}
+
+// A clean pass must stay a clean pass — the warning is for a real undercut,
+// not a permanent asterisk on every positive result.
+func TestVerdictDoesNotCryWolfOnACleanPass(t *testing.T) {
+	rep := Report{
+		Cases: 75,
+		Aggregates: []Aggregate{
+			{Strategy: "lectio", PrecisionA: 0.50},
+			{Strategy: "largest files", PrecisionA: 0.40},
+			{Strategy: "most churned, 12mo", PrecisionA: 0.40},
+			{Strategy: "most recently modified", PrecisionA: 0.40},
+			{Strategy: "most distinct authors", PrecisionA: 0.40},
+			{Strategy: "largest symbols", PrecisionA: 0.30},
+		},
+	}
+	if v := decide(rep); !v.Passed || v.Hollow() {
+		t.Errorf("a clean pass was flagged: %+v", v)
+	}
+}

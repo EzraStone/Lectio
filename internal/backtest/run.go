@@ -446,8 +446,19 @@ type Verdict struct {
 	Beaten []string
 	// Lost lists baselines it did not.
 	Lost []string
-	Note string
+	// OutscoredByControl lists controls that beat lectio.
+	//
+	// A control cannot fail the gate — the spec names four baselines and
+	// adding a fifth after seeing the score would be moving the goalposts. But
+	// a PASS printed beside a control that doubled lectio's precision is a
+	// technically-true headline, and the whole point of the controls is to
+	// make that visible rather than leave it in a table for someone to notice.
+	OutscoredByControl []string
+	Note               string
 }
+
+// Hollow reports a pass that a control undercuts.
+func (v Verdict) Hollow() bool { return v.Passed && len(v.OutscoredByControl) > 0 }
 
 // Summarize turns per-case results into the report Gate A is decided on.
 func Summarize(results []CaseResult, k int) Report {
@@ -584,9 +595,19 @@ func decide(rep Report) Verdict {
 	for _, b := range Baselines() {
 		isBaseline[b.Name()] = true
 	}
+	isControl := make(map[string]bool, 4)
+	for _, c := range Controls() {
+		isControl[c.Name()] = true
+	}
+	for _, c := range SymbolControls() {
+		isControl[c.Name()] = true
+	}
 
 	v := Verdict{Passed: true}
 	for _, a := range rep.Aggregates {
+		if isControl[a.Strategy] && a.PrecisionA > lectio {
+			v.OutscoredByControl = append(v.OutscoredByControl, a.Strategy)
+		}
 		if !isBaseline[a.Strategy] {
 			continue
 		}
@@ -601,6 +622,10 @@ func decide(rep Report) Verdict {
 	if v.Passed {
 		v.Note = fmt.Sprintf("beat all %d baselines on mean precision@%d across %d cases",
 			len(v.Beaten), rep.K, rep.Cases)
+		if v.Hollow() {
+			v.Note += fmt.Sprintf(" — but %s scored higher, and it is a control",
+				strings.Join(v.OutscoredByControl, " and "))
+		}
 	} else {
 		// Join explicitly: %v on a slice runs the names together with only
 		// spaces between them, and these names contain spaces themselves.
