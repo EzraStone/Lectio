@@ -366,3 +366,65 @@ func TestReadStrataKeepsLargestFilesForFileTargets(t *testing.T) {
 		t.Errorf("Incumbent = %q, want largest files", got.Incumbent)
 	}
 }
+
+// Counting bands alone misreports lopsided results. Lectio takes one band by
+// 0.7 points and loses three by 3.6, 6.6 and 10.0 — calling that "mixed" is
+// arithmetically true and substantively wrong.
+func TestReadStrataWeighsMarginNotJustBandCount(t *testing.T) {
+	rep := Report{
+		Cases:  75,
+		Target: TargetSymbols,
+		Aggregates: []Aggregate{
+			{Strategy: "lectio", PrecisionA: 0.105},
+			{Strategy: "largest symbols", PrecisionA: 0.228},
+		},
+	}
+	for q, p := range [][2]float64{
+		{0.110, 0.103}, {0.075, 0.141}, {0.083, 0.119}, {0.137, 0.237},
+	} {
+		rep.Strata = append(rep.Strata,
+			StratumAggregate{Strategy: "lectio", Stratum: q, Cases: 75, Precision: p[0], Spread: 3},
+			StratumAggregate{Strategy: "largest symbols", Stratum: q, Cases: 75, Precision: p[1], Spread: 3},
+		)
+	}
+
+	got := ReadStrata(rep)
+	if got.LectioWins != 1 {
+		t.Fatalf("LectioWins = %d, want 1", got.LectioWins)
+	}
+	if got.MeanGap > -0.045 {
+		t.Fatalf("MeanGap = %.4f, want a decisive negative margin", got.MeanGap)
+	}
+	if strings.Contains(got.Note, "mixed") {
+		t.Errorf("a lopsided result was called mixed: %q", got.Note)
+	}
+	if !strings.Contains(got.Note, "margin") {
+		t.Errorf("the note does not point at the margin: %q", got.Note)
+	}
+}
+
+// The rule has to be symmetric, or it is a device for explaining away losses.
+// A narrow lectio win across split bands must not be reported as decisive.
+func TestReadStrataStaysCautiousWhenMarginsAreNarrow(t *testing.T) {
+	rep := Report{
+		Cases:  75,
+		Target: TargetSymbols,
+		Aggregates: []Aggregate{
+			{Strategy: "lectio", PrecisionA: 0.100},
+			{Strategy: "largest symbols", PrecisionA: 0.105},
+		},
+	}
+	for q, p := range [][2]float64{
+		{0.110, 0.103}, {0.098, 0.101}, {0.104, 0.100}, {0.099, 0.106},
+	} {
+		rep.Strata = append(rep.Strata,
+			StratumAggregate{Strategy: "lectio", Stratum: q, Cases: 75, Precision: p[0], Spread: 3},
+			StratumAggregate{Strategy: "largest symbols", Stratum: q, Cases: 75, Precision: p[1], Spread: 3},
+		)
+	}
+
+	got := ReadStrata(rep)
+	if !strings.Contains(got.Note, "mixed") {
+		t.Errorf("a genuinely close result should still read as unsettled: %q", got.Note)
+	}
+}

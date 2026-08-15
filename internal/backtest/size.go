@@ -218,6 +218,12 @@ type SizeReading struct {
 	// bands. Near zero means the ranking is adding nothing over size — which
 	// is a different finding from being worse at choosing.
 	TightGap float64
+	// MeanGap is the same difference across every comparable band.
+	//
+	// Band counts alone misreport lopsided results: winning one band by 0.7
+	// points and losing three by 3.6, 6.6 and 10.0 is not "mixed", and the
+	// first version of this reading said it was.
+	MeanGap float64
 	// Note states which reading the numbers support, in words.
 	Note string
 }
@@ -295,6 +301,13 @@ func ReadStrata(rep Report) SizeReading {
 	if r.TightBands > 0 {
 		r.TightGap = tightSum / float64(r.TightBands)
 	}
+	if n := len(r.Bands); n > 0 {
+		var sum float64
+		for _, b := range r.Bands {
+			sum += b.Lectio - b.Largest
+		}
+		r.MeanGap = sum / float64(n)
+	}
 
 	r.Note = readingNote(r)
 	return r
@@ -304,6 +317,15 @@ func ReadStrata(rep Report) SizeReading {
 // strategy as far as this corpus can tell. Matches the threshold the ablation
 // table is read at.
 const negligibleGap = 0.015
+
+// decisiveGap is the mean per-band difference above which a split band count
+// stops being the interesting fact.
+//
+// Set at three times negligibleGap: if the average band gap is more than twice
+// what this corpus can even resolve, the direction is not in doubt however the
+// individual bands fell. Deliberately symmetric — it makes the reading more
+// skeptical of a narrow lectio win too, not only of a narrow lectio loss.
+const decisiveGap = 0.045
 
 func readingNote(r SizeReading) string {
 	n := len(r.Bands)
@@ -333,6 +355,14 @@ func readingNote(r SizeReading) string {
 		return fmt.Sprintf(
 			"%s leads in all %d size bands — its advantage is not an artifact "+
 				"of the metric", r.Incumbent, n)
+
+	// Split bands, but lopsided ones. Counting alone would call a result mixed
+	// when the wins are fractions of a point and the losses are many.
+	case r.MeanGap <= -decisiveGap:
+		return fmt.Sprintf(
+			"%s leads overall and by %.1f pp averaged across bands; lectio takes %d of %d "+
+				"and only narrowly — the split is not the story, the margin is",
+			r.Incumbent, -r.MeanGap*100, r.LectioWins, n)
 
 	default:
 		return fmt.Sprintf(
