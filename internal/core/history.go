@@ -86,3 +86,26 @@ type Authorship struct {
 	Lines      int
 	LastActive time.Time
 }
+
+// LineRange is a half-open span of lines, 1-based: [Start, Start+Count).
+//
+// A zero Count is meaningful rather than empty. Git reports a pure deletion as
+// an insertion point of length zero, and the lines that vanished were part of
+// some declaration — so a zero-count range still identifies a symbol that was
+// changed, and dropping those would silently exclude every commit that only
+// removed code.
+type LineRange struct {
+	Start int
+	Count int
+}
+
+// Touches reports whether the range overlaps [start, end], both inclusive.
+//
+// A zero-count range touches the declaration it sits inside, which is what
+// makes deletions attributable.
+func (r LineRange) Touches(start, end int) bool {
+	if r.Count <= 0 {
+		return r.Start >= start && r.Start <= end+1
+	}
+	return r.Start <= end && r.Start+r.Count-1 >= start
+}
