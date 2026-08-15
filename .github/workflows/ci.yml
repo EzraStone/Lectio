@@ -19,9 +19,14 @@ jobs:
           # history, so fetch it all.
           fetch-depth: 0
 
+      # Not pinned to a specific release. The type checker is compiled into
+      # the binary, so a build older than the code it analyzes drops whole
+      # packages silently — and this project's own go.mod is the first thing
+      # its tests type-check.
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: stable
+          check-latest: true
           cache: true
 
       - name: Configure git identity
