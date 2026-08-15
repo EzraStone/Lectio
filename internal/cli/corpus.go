@@ -28,7 +28,7 @@ func runCorpus(ctx context.Context, env *Env, args []string) error {
 		sub, args = args[0], args[1:]
 	}
 
-	fs := newFlagSet(env, "corpus", "corpus <status|pin|fetch> [flags]")
+	fs := newFlagSet(env, "corpus", "corpus <status|pin|fetch|verify> [flags]")
 	var (
 		manifest = fs.String("manifest", corpus.DefaultPath, "corpus manifest to read")
 		cacheDir = fs.String("cache", "", "where to clone repositories (default: XDG cache)")
@@ -50,6 +50,8 @@ func runCorpus(ctx context.Context, env *Env, args []string) error {
 		return corpusPin(ctx, env, cache, m, *manifest)
 	case "fetch":
 		return corpusFetch(ctx, env, cache, m)
+	case "verify":
+		return corpusVerify(ctx, env, cache, m)
 	default:
 		fs.Usage()
 		return fmt.Errorf("unknown subcommand %q", sub)
@@ -171,4 +173,57 @@ func pluralize(n int, noun string) string {
 		return fmt.Sprintf("%d %sies", n, noun[:len(noun)-1])
 	}
 	return fmt.Sprintf("%d %ss", n, noun)
+}
+
+// corpusVerify checks that every pinned revision still exists.
+//
+// A pinned corpus is what makes a Gate A number reproducible, and pins rot
+// quietly: a force-push, a rename, a deleted repository. The failure surfaces
+// months later as a corpus silently covering twenty-eight repositories while
+// the report still says thirty — so this is cheap enough to run before quoting
+// a number.
+func corpusVerify(ctx context.Context, env *Env, cache *corpus.Cache, m *corpus.Manifest) error {
+	env.out("")
+	env.out("%s", env.bold(fmt.Sprintf("Verifying %d pins", len(m.Repos))))
+	env.out("%s", env.dim("  one ls-remote each; nothing is cloned"))
+	env.out("")
+
+	var broken, unconfirmed int
+	for _, v := range corpus.Verify(ctx, cache, m) {
+		// Prefer the local clone when there is one: a corpus pinned to a
+		// commit rather than a branch head cannot be confirmed from the
+		// remote alone, and the clone can settle it exactly.
+		if local := corpus.VerifyLocal(ctx, cache, v.Repo); local.Reachable {
+			v = local
+		}
+
+		switch {
+		case !v.Reachable:
+			broken++
+			env.out("  %-30s %s", truncateName(v.Repo.Name, 30), env.bad("broken"))
+			env.out("      %s", env.dim(v.Reason))
+		case v.Reason != "":
+			unconfirmed++
+			env.out("  %-30s %s", truncateName(v.Repo.Name, 30), env.warn("unconfirmed"))
+			env.out("      %s", env.dim(v.Reason))
+		default:
+			env.out("  %-30s %s", truncateName(v.Repo.Name, 30), env.good("ok"))
+		}
+	}
+
+	env.out("")
+	switch {
+	case broken > 0:
+		env.out("%s %d of %d pins no longer resolve — a Gate A number over this corpus",
+			env.bad("broken:"), broken, len(m.Repos))
+		env.out("%s", env.dim("  is not the number the manifest describes"))
+		return fmt.Errorf("%d pins are unreachable", broken)
+	case unconfirmed > 0:
+		env.out("%s %d pins could not be confirmed from the remote alone.",
+			env.warn("note:"), unconfirmed)
+		env.out("%s", env.dim("  Fetch the corpus and re-run to settle them against local clones."))
+	default:
+		env.out("%s all %d pins resolve", env.good("ok:"), len(m.Repos))
+	}
+	return nil
 }
