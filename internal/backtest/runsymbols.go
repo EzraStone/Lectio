@@ -22,7 +22,7 @@ import (
 // commits being attributed happened after the rewind point and are not
 // reachable from the detached worktree's HEAD, though they are perfectly
 // reachable from the repository that worktree belongs to.
-func scoreSymbolic(ctx context.Context, res *CaseResult, c Case, v *index.View, p rank.Params, opts RunOptions, _ string) {
+func scoreSymbolic(ctx context.Context, res *CaseResult, c Case, v *index.View, p rank.Params, opts RunOptions) {
 	a := golangadapter.New()
 	resolver, ok := any(a).(adapter.SpanResolver)
 	if !ok {

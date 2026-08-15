@@ -282,7 +282,7 @@ func RunCase(ctx context.Context, c Case, opts RunOptions) CaseResult {
 	// identical band boundaries. Deriving them per strategy would let two rows
 	// of the same table mean different things by "Q4".
 	if opts.Target.Symbolic() {
-		scoreSymbolic(ctx, &res, c, v, p, opts, tree)
+		scoreSymbolic(ctx, &res, c, v, p, opts)
 		res.Elapsed = time.Since(start)
 		return res
 	}
