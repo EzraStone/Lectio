@@ -10,10 +10,12 @@ Three different signals lead those reasons: hidden coupling, orphaning,
 centrality. A list where every row said the same thing would mean six of the
 seven signals were decoration.
 
-> **Status: Gate A failed, four ways.** Across 30 pinned repositories, lectio
+> **Status: Gate A failed, six ways.** Across 30 pinned repositories, lectio
 > lost to *largest files* — and once file size is held constant the two are the
 > same strategy. Hidden coupling, the differentiator, measures a lift of 1.02
-> over 2,311 newcomer corrective commits: no relationship. Full result:
+> over 2,311 newcomer corrective commits: no relationship. Grading declarations
+> instead of files removed the file-size prior and a control that ranks the
+> longest declarations beat the ranking two to one. Full result:
 > [docs/gate-a-2026-08.md](docs/gate-a-2026-08.md). See
 > [Where this stands](#where-this-stands).
 
@@ -83,6 +85,7 @@ produce a call graph missing everything in them.
 | `lectio backtest [repo...]` | Gate A: predict what a past newcomer touched |
 | `lectio backtest --coupling` | Gate A's other half: does hidden coupling predict anything |
 | `lectio corpus <status\|pin\|fetch>` | Manage the thirty repositories Gate A runs against |
+| `lectio version` | Version, and the Go release the analysis is capped by |
 
 Useful flags:
 
@@ -97,7 +100,9 @@ lectio probe --forget             # erase all local history
 lectio backtest --ablate          # what each signal is worth, in points
 lectio backtest --collapse max    # the symbol-to-file rule; mean by default
 lectio backtest --target corrected  # grade against what they had to fix
+lectio backtest --target symbols  # grade declarations, not file paths
 lectio backtest --coupling        # the second backtest: does the differentiator work?
+lectio version                    # and which Go release caps the analysis
 ```
 
 The index lives in `.lectio/index.db` inside the repo. Add `.lectio/` to your
@@ -227,17 +232,39 @@ Every strategy that beat lectio beat it by being more size-correlated, so
 fitting to this metric produces a tool that recommends big files — the failure
 it exists to prevent.
 
-Gate A is a hard stop and it has now been answered. Nothing below it should be
-built on this ranking. What would change the answer is in
-[the write-up](docs/gate-a-2026-08.md#what-this-means); the short version is
-that grading at symbol granularity rather than file paths is the one remaining
-explanation under which the ranking is better than it measures.
+**And the unit was not the problem either.** Grading declarations instead of
+file paths removes the size prior every file-level measure carries — it was the
+last explanation under which the ranking might be better than it measured.
+Lectio beats all four baselines there, which passes the gate as written, and a
+control that simply ranks the longest declarations beats *it* by more than two
+to one:
+
+| Strategy | precision@10 on declarations |
+| --- | --- |
+| largest symbols *(control)* | **22.8%** |
+| lectio | 10.5% |
+| most churned, 12mo | 8.3% |
+| largest files | 6.9% |
+| most distinct authors | 6.5% |
+| most recently modified | 4.7% |
+
+The control leads on recall, MRR and median too. It was defined before the run,
+precisely to ask whether size would follow the measure down from files to
+symbols. It did.
+
+Gate A is a hard stop and it has now been answered six ways. Nothing below it
+should be built on this ranking. What would change the answer is in
+[the write-up](docs/gate-a-2026-08.md#what-this-means); after six runs the most
+likely reading is that what people *touched* is too weak a stand-in for what
+they needed to *understand*, which makes the question one for users rather than
+for a bigger corpus.
 
 ```sh
 make corpus            # clone the thirty pinned repositories (slow, once)
 make gate-a            # the gate, with per-signal ablation
 make gate-a-corrected  # the same, graded against what newcomers had to fix
 make coupling          # the differentiator, measured directly
+make gate-a-symbols    # graded in declarations rather than file paths
 ```
 
 The corpus is [`corpus/gate-a.json`](corpus/gate-a.json): thirty Go

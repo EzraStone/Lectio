@@ -1,7 +1,7 @@
 BINARY := lectio
 PKG    := ./...
 
-.PHONY: build test vet fmt tidy clean install corpus gate-a gate-a-corrected coupling
+.PHONY: build test vet fmt tidy clean install corpus gate-a gate-a-corrected gate-a-symbols coupling
 
 build:
 	go build -o bin/$(BINARY) ./cmd/lectio
@@ -43,3 +43,8 @@ coupling: build
 
 clean:
 	rm -rf bin/ backtest-out/
+
+# Gate A graded in declarations rather than file paths, which removes the size
+# prior every file-level measure carries.
+gate-a-symbols: build
+	./bin/$(BINARY) backtest --corpus corpus/gate-a.json --ablate --target symbols -v
