@@ -252,6 +252,11 @@ The control leads on recall, MRR and median too. It was defined before the run,
 precisely to ask whether size would follow the measure down from files to
 symbols. It did.
 
+![Gate A graded in declarations: 75 cases scored, 39 discarded, case set 0d1e81666c55. Lectio reaches 10.5 percent precision at 10 and beats all four baselines, so the verdict reads PASS — annotated that largest symbols scored 22.8 percent and is a control. A declaration-size band table follows, with the reading stating that largest symbols leads by 4.9 points averaged across bands.](docs/images/symbols.png)
+
+<sub>The verdict is a pass. It is printed in warning colour because a control
+more than doubled it, which is the more useful fact.</sub>
+
 Gate A is a hard stop and it has now been answered six ways. Nothing below it
 should be built on this ranking. What would change the answer is in
 [the write-up](docs/gate-a-2026-08.md#what-this-means); after six runs the most
