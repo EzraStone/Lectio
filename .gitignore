@@ -1,7 +1,12 @@
-# Build output
+# Build output.
+#
+# Anchored, all of them. A bare `lectio` matches any path segment with that
+# name — including cmd/lectio/, which is the program's entry point. That rule
+# kept main.go out of the repository entirely, so a clone had no main package
+# and could not build.
 /bin/
 /dist/
-lectio
+/lectio
 
 # Index / state databases produced at runtime
 *.lectio.db
