@@ -102,6 +102,9 @@ type Aggregate struct {
 	PrecisionA float64 `json:"precision"` // mean precision@10
 	RecallA    float64 `json:"recall"`    // mean recall@10
 	MRR        float64 `json:"mrr"`
+	// MatchedA is mean accuracy over size-matched pairs. 0.5 is chance, and
+	// unlike precision it is readable without a baseline beside it.
+	MatchedA float64 `json:"matched"`
 	// Wins counts cases where this strategy beat a comparison strategy. Filled
 	// in by the report, not by the aggregation.
 	Wins int `json:"wins"`
@@ -122,6 +125,14 @@ func Mean(strategy string, precisions, recalls, mrrs []float64) Aggregate {
 	a.MRR = mean(mrrs)
 	return a
 }
+
+// MeanMatched folds matched-pair accuracies into an aggregate.
+//
+// Averaged over cases that produced pairs, not over all cases. A case with no
+// usable pairs has not been measured, and counting it as zero would report
+// every strategy as far below chance in proportion to how many cases the
+// pairing could not reach.
+func MeanMatched(xs []float64) float64 { return mean(xs) }
 
 func mean(xs []float64) float64 {
 	if len(xs) == 0 {

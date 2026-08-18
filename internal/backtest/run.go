@@ -28,6 +28,11 @@ type Score struct {
 	Recall    float64
 	MRR       float64
 	Predicted []string
+	// Matched is accuracy over size-matched pairs, where 0.5 is chance. Zero
+	// when the case produced too few pairs to say anything.
+	Matched float64
+	// Pairs is how many matched pairs backed that number.
+	Pairs int
 }
 
 // CaseResult holds every strategy's score on one case.
@@ -420,6 +425,8 @@ type Report struct {
 	Aggregates []Aggregate `json:"aggregates"`
 	// Medians is the median precision per strategy, keyed by name.
 	Medians map[string]float64 `json:"medians"`
+	// MatchedPairs totals the pairs behind the matched-pair column.
+	MatchedPairs int `json:"matched_pairs"`
 	// Strata holds mean precision per strategy within each file-size quartile.
 	Strata []StratumAggregate `json:"strata"`
 	// Collapse is the symbol-to-file rule the scored cases ran under, carried
@@ -486,6 +493,7 @@ func Summarize(results []CaseResult, k int) Report {
 	precisions := map[string][]float64{}
 	recalls := map[string][]float64{}
 	mrrs := map[string][]float64{}
+	matched := map[string][]float64{}
 	strata := map[stratumKey][]float64{}
 	spreads := map[stratumKey][]float64{}
 	var order []string
@@ -518,6 +526,13 @@ func Summarize(results []CaseResult, k int) Report {
 			precisions[s.Strategy] = append(precisions[s.Strategy], s.Precision)
 			recalls[s.Strategy] = append(recalls[s.Strategy], s.Recall)
 			mrrs[s.Strategy] = append(mrrs[s.Strategy], s.MRR)
+			// Only cases that produced pairs. A case the pairing could not
+			// reach has not been measured, and counting it as zero would report
+			// every strategy far below chance in proportion to how often that
+			// happened.
+			if s.Pairs > 0 {
+				matched[s.Strategy] = append(matched[s.Strategy], s.Matched)
+			}
 		}
 		for _, ss := range r.Strata {
 			key := stratumKey{ss.Strategy, ss.Stratum}
@@ -529,8 +544,13 @@ func Summarize(results []CaseResult, k int) Report {
 	rep.CaseSet = fingerprint(results)
 
 	for _, name := range order {
-		rep.Aggregates = append(rep.Aggregates, Mean(name, precisions[name], recalls[name], mrrs[name]))
+		a := Mean(name, precisions[name], recalls[name], mrrs[name])
+		a.MatchedA = MeanMatched(matched[name])
+		rep.Aggregates = append(rep.Aggregates, a)
 		rep.Medians[name] = Median(precisions[name])
+		if n := len(matched[name]); n > rep.MatchedPairs {
+			rep.MatchedPairs = n
+		}
 	}
 	// Strategy order follows the main table; band order is smallest to
 	// largest, so a row reads left to right as size increases.

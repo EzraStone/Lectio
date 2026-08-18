@@ -72,14 +72,27 @@ func scoreSymbolic(ctx context.Context, res *CaseResult, c Case, v *index.View, 
 	sizes := SymbolSizes(v)
 
 	want := symbolIDs(ground)
+
+	// Size-matched pairs, built once and shared. Every strategy has to face the
+	// same pairs or the column compares different questions.
+	pairs := BuildMatchedPairs(want, sizes)
+	if len(pairs) < MinPairs {
+		// Not an error: the case is still scored on precision, and the matched
+		// column simply has nothing to say about it.
+		pairs = nil
+	}
+
 	for _, s := range strategies {
 		predicted := symbolIDs(s.RankSymbols(v, p))
+		matched, nPairs := ScoreMatchedPairs(predicted, pairs)
 		res.Scores = append(res.Scores, Score{
 			Strategy:  s.Name(),
 			Precision: PrecisionAt(predicted, want, opts.K),
 			Recall:    RecallAt(predicted, want, opts.K),
 			MRR:       MeanReciprocalRank(predicted, want),
 			Predicted: truncate(predicted, opts.K),
+			Matched:   matched,
+			Pairs:     nPairs,
 		})
 		for _, ss := range scoreStrata(predicted, want, sizes, opts.K) {
 			ss.Strategy = s.Name()
