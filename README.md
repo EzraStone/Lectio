@@ -276,6 +276,11 @@ which makes the column readable with no baseline beside it:
 | largest files | 6.9% | 48.4% |
 | most recently modified | 4.7% | 49.2% |
 
+![Gate A graded in declarations with a size-matched column: lectio at 10.5 percent precision and 49.5 percent matched, largest symbols at 22.8 percent precision and 52.0 percent matched, every strategy between 48.3 and 52.0 percent over 2891 size-matched pairs from 67 cases, with a caption stating that 50 percent is chance and size cannot beat it by construction.](docs/images/matched.png)
+
+<sub>The precision column and the matched column disagree completely, which is
+the finding: everything precision@10 rewards, a size-matched pair removes.</sub>
+
 2,891 pairs from 67 cases, everything inside ±2 points of chance. The control
 makes the point cleanly: largest-symbols more than doubled lectio on precision
 and scores 52.0% here, because length was all it ever knew. Lectio scores

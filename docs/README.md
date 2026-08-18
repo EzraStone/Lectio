@@ -27,11 +27,17 @@ say FAIL. None are mockups, and none have been edited after capture.
 | `backtest.png` | Gate A at file granularity — the FAIL, with size bands |
 | `coupling.png` | The differentiator measured directly: pooled lift 1.00 |
 | `symbols.png` | Gate A at declaration granularity — a pass, undercut by a control |
+| `matched.png` | The same run with size removed by construction: everything scores chance |
 
-Two are worth looking at together. `backtest.png` and `symbols.png` are the
+Three are worth looking at together. `backtest.png` and `symbols.png` are the
 same gate at two granularities, and the second is the more interesting: lectio
 beats all four baselines there, and the verdict is printed in warning colour
 because a control more than doubled it.
+
+`matched.png` is the same run again with one extra column, and it is the one to
+read last. Precision and matched accuracy disagree completely — everything the
+first rewards, the second removes — because the first is measuring size and the
+second cannot.
 
 ## Elsewhere in the repository
 
