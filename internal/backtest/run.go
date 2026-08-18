@@ -402,6 +402,11 @@ func addWorktree(ctx context.Context, repo, rev, workDir string) (string, func()
 // interface, and a consumer that cannot tell which shape it received has to
 // guess from the fields present. Bumped on any change that removes or renames
 // a field, never on an addition.
+//
+// The matched-pair fields did not bump it: they are additions, so a version-1
+// consumer still reads a version-1 document correctly and simply does not see
+// them. Recorded here to keep the next person from bumping out of caution and
+// breaking every consumer to no purpose.
 const ReportSchema = 1
 
 // Report aggregates results across cases.
