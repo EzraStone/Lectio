@@ -263,11 +263,15 @@ func renderReport(env *Env, r backtest.Report) {
 
 	if matched {
 		env.out("")
+		unit := "file"
+		if r.Target.Symbolic() {
+			unit = "declaration"
+		}
 		for _, l := range wrap(fmt.Sprintf(
 			"matched: accuracy over %d size-matched pairs from %d cases — for each "+
-				"declaration the contributor touched, one of the same size they did not. "+
+				"%s the contributor touched, one of the same size they did not. "+
 				"%.0f%% is chance, and size cannot beat chance here by construction.",
-			r.MatchedPairs, r.MatchedCases, backtest.MatchedChance*100), 72) {
+			r.MatchedPairs, r.MatchedCases, unit, backtest.MatchedChance*100), 72) {
 			env.out("%s", env.dim("  "+l))
 		}
 	}

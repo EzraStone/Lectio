@@ -295,14 +295,27 @@ func RunCase(ctx context.Context, c Case, opts RunOptions) CaseResult {
 	sizes := FileSizes(v)
 	ground := c.Ground(opts.Target)
 
+	// The same size-matched pairs the symbolic targets use, at file
+	// granularity. This is the spec's primary measure, so it is the one the
+	// instrument most needs to be pointed at — precision here is what
+	// largest-files won, and the pairing is what says whether that win was
+	// about size.
+	pairs := BuildMatchedPairs(ground, sizes)
+	if len(pairs) < MinPairs {
+		pairs = nil
+	}
+
 	for _, s := range strategies {
 		predicted := s.RankFiles(v, p)
+		matched, nPairs := ScoreMatchedPairs(predicted, pairs)
 		res.Scores = append(res.Scores, Score{
 			Strategy:  s.Name(),
 			Precision: PrecisionAt(predicted, ground, opts.K),
 			Recall:    RecallAt(predicted, ground, opts.K),
 			MRR:       MeanReciprocalRank(predicted, ground),
 			Predicted: truncate(predicted, opts.K),
+			Matched:   matched,
+			Pairs:     nPairs,
 		})
 		for _, ss := range scoreStrata(predicted, ground, sizes, opts.K) {
 			ss.Strategy = s.Name()
