@@ -10,12 +10,14 @@ Three different signals lead those reasons: hidden coupling, orphaning,
 centrality. A list where every row said the same thing would mean six of the
 seven signals were decoration.
 
-> **Status: Gate A failed, six ways.** Across 30 pinned repositories, lectio
+> **Status: Gate A failed, seven ways.** Across 30 pinned repositories, lectio
 > lost to *largest files* — and once file size is held constant the two are the
 > same strategy. Hidden coupling, the differentiator, measures a lift of 1.02
 > over 2,311 newcomer corrective commits: no relationship. Grading declarations
 > instead of files removed the file-size prior and a control that ranks the
-> longest declarations beat the ranking two to one. Full result:
+> longest declarations beat the ranking two to one. And with size removed by
+> construction — each touched declaration paired against one of the same size —
+> every strategy scores chance. Full result:
 > [docs/gate-a-2026-08.md](docs/gate-a-2026-08.md). See
 > [Where this stands](#where-this-stands).
 
@@ -260,12 +262,35 @@ symbols. It did.
 <sub>The verdict is a pass. It is printed in warning colour because a control
 more than doubled it, which is the more useful fact.</sub>
 
-Gate A is a hard stop and it has now been answered six ways. Nothing below it
-should be built on this ranking. What would change the answer is in
-[the write-up](docs/gate-a-2026-08.md#what-this-means); after six runs the most
-likely reading is that what people *touched* is too weak a stand-in for what
-they needed to *understand*, which makes the question one for users rather than
-for a bigger corpus.
+**And with size removed entirely, nothing predicts anything.** Stratification
+narrows a band's size range; it does not eliminate it. Matched pairs do — each
+declaration the contributor touched is paired with one of the *same size* they
+did not, so a strategy ranking purely by size wins exactly half. Chance is 50%,
+which makes the column readable with no baseline beside it:
+
+| Strategy | precision@10 | size-matched |
+| --- | --- | --- |
+| largest symbols *(control)* | 22.8% | 52.0% |
+| lectio | 10.5% | 49.5% |
+| most churned, 12mo | 8.3% | 49.9% |
+| largest files | 6.9% | 48.4% |
+| most recently modified | 4.7% | 49.2% |
+
+2,891 pairs from 67 cases, everything inside ±2 points of chance. The control
+makes the point cleanly: largest-symbols more than doubled lectio on precision
+and scores 52.0% here, because length was all it ever knew. Lectio scores
+49.5% — seven signals, a call graph and twelve months of history producing a
+coin.
+
+Gate A is a hard stop and it has now been answered seven ways. Nothing below it
+should be built on this ranking. After seven runs the likely reading is not
+that the ranking is behind but that the question is wrong: among declarations
+of equal size, nothing available here separates the ones a newcomer touched
+from the ones they did not. What people *touched* looks too weak a stand-in for
+what they needed to *understand*, which makes this a question for users rather
+than for a bigger corpus. [The write-up](docs/gate-a-2026-08.md#what-this-means)
+has the detail, including the flaw in the first version of this measure and the
+four calibrations that now stand behind it.
 
 ```sh
 make corpus            # clone the thirty pinned repositories (slow, once)

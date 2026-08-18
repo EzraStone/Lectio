@@ -5,13 +5,26 @@ are the questions the work was answering.
 
 ## Unreleased
 
-### Gate A, six runs, six failures
+### Gate A, seven runs, seven failures
 
 The go/no-go was run at scale and failed. The write-up is
 [docs/gate-a-2026-08.md](docs/gate-a-2026-08.md); the short version is that
 once file size is held constant the ranking is indistinguishable from sorting
 by size, and every attempt to find a reading where it earns its place came back
 negative.
+
+**Size-matched pairs — the measure size cannot win.** Every other target
+correlates with how much code there is. This one pairs each touched
+declaration with one of the same size the contributor did not touch, so a
+size-only strategy wins exactly half and chance is 50%. Across 2,891 pairs
+every strategy lands inside ±2 points of chance, including the size control
+that had more than doubled lectio on precision.
+
+Its first version put everything *below* chance, which is impossible on a
+size-matched pair: twins were consumed in ID order, and every strategy breaks
+ties by ID. Four calibrations now stand behind the number — a size-only
+ranking, that ranking reversed, and ID order must all score chance, and an
+oracle must score ~100%.
 
 **Symbol-granularity grading.** Every earlier measure scored file paths, and
 file size is a prior on any of them — this removed it. `vcs.Git.Hunks` reads
