@@ -1,6 +1,7 @@
 package backtest
 
 import (
+	"hash/fnv"
 	"sort"
 )
 
@@ -94,7 +95,7 @@ func BuildMatchedPairs(ground []string, sizes map[string]int) []MatchedPair {
 			// recommended it, so it is not a fair thing to score against.
 			continue
 		}
-		twin, twinSize, found := nearestUnused(candidates, sizes, size, used)
+		twin, twinSize, found := nearestUnused(candidates, sizes, size, used, id)
 		if !found || !withinRatio(size, twinSize) {
 			continue
 		}
@@ -116,32 +117,58 @@ func withinRatio(a, b int) bool {
 	return float64(hi)/float64(lo) <= MaxSizeRatio
 }
 
-// nearestUnused finds the closest-sized unused candidate.
+// nearestUnused finds a closest-sized unused candidate, chosen so the choice
+// carries no information about ID order.
 //
-// Linear rather than a binary search with a skip list: the candidate list is
-// thousands of entries and this runs once per ground-truth symbol, so the
-// simple version is fast enough and cannot get the tie-breaking subtly wrong.
-func nearestUnused(candidates []string, sizes map[string]int, want int, used map[string]bool) (string, int, bool) {
-	best, bestSize, bestDist := "", 0, 0
-	found := false
+// The tie-breaking here is the whole measure. Taking the first candidate at the
+// minimum distance looks neutral and is not: candidates are sorted by (size,
+// ID), so twins get consumed in ascending ID order while ground-truth symbols
+// are processed in ascending ID order too. The twin ends up with a lower ID
+// than its partner almost every time.
+//
+// That matters because every strategy in this harness breaks ties by ID — it
+// is how they stay reproducible. So a pairing correlated with ID order makes
+// every strategy score far below chance for a reason that has nothing to do
+// with ranking quality. Measured on a synthetic corpus, a pure size ranking
+// scored 3.3% where it must score 50.
+//
+// Choosing among the tied candidates by a hash of the touched symbol's ID
+// keeps the selection deterministic and decorrelates it from the ordering
+// every strategy shares.
+func nearestUnused(candidates []string, sizes map[string]int, want int, used map[string]bool, seed string) (string, int, bool) {
+	bestDist := -1
+	var tied []string
 	for _, id := range candidates {
 		if used[id] {
 			continue
 		}
-		size := sizes[id]
-		dist := size - want
+		dist := sizes[id] - want
 		if dist < 0 {
 			dist = -dist
 		}
-		if !found || dist < bestDist {
-			best, bestSize, bestDist, found = id, size, dist, true
-			if dist == 0 {
-				// Candidates are size-sorted, so nothing later can be closer.
-				break
-			}
+		switch {
+		case bestDist < 0 || dist < bestDist:
+			bestDist, tied = dist, []string{id}
+		case dist == bestDist:
+			tied = append(tied, id)
 		}
 	}
-	return best, bestSize, found
+	if len(tied) == 0 {
+		return "", 0, false
+	}
+	chosen := pickTied(tied, seed)
+	return chosen, sizes[chosen], true
+}
+
+// pickTied selects one candidate deterministically but independently of ID
+// order, using the seed rather than the position in the list.
+func pickTied(tied []string, seed string) string {
+	if len(tied) == 1 {
+		return tied[0]
+	}
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(seed))
+	return tied[int(h.Sum64()%uint64(len(tied)))]
 }
 
 // ScoreMatchedPairs reports the share of pairs where the strategy ranked the
