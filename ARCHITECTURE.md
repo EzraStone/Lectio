@@ -221,6 +221,7 @@ Changes to these are the ones that need the most thought:
 | `Params.Now` / `Options.AsOf` | Wall-clock reads make backtests report numbers they cannot repeat |
 | `backtest.Collapse` | The symbol-to-file rule is a size prior; max quietly reinstates the bug Gate A was measuring |
 | `SymbolBaselines` translation | Restating it after seeing a score is how the gate gets argued past |
+| `nearestUnused` tie-breaking | Any correlation with ID order silently biases every strategy at once |
 | `Baselines()` vs `Controls()` | A control that could fail the gate is a fifth baseline added after the fact |
 
 Several of these have tests written specifically as tripwires — a test named
@@ -348,6 +349,31 @@ symbols in the biggest files, in source order" — what the file-level baseline
 actually recommended — not "the biggest symbols". Choosing that afterwards is
 how a gate gets argued past. `LargestSymbols` exists as a *control* for exactly
 that reason, and it is what beat the ranking two to one.
+
+### Size-matched pairs
+
+Stratification narrows the size range inside a band; it does not eliminate it.
+Matched pairs do. Each ground-truth symbol is paired with a symbol of the same
+size the contributor did not touch, and the question is which of the two a
+strategy ranks higher. Within a pair the candidates are the same size, so a
+strategy ranking purely by size wins half of them.
+
+**Chance is 50%, which is what makes the column readable without a baseline.**
+Every other number in the report needs a comparison beside it to mean anything.
+
+The pairing is the fragile part, and it failed the first time. Candidates are
+sorted by (size, ID) and ground truth is processed in ID order, so twins were
+consumed in ascending ID order and almost always had a lower ID than their
+partner — and every strategy here breaks ties by ID, so all of them inherited
+that ordering and scored between 28.8% and 46.8% on a full corpus run. Tied
+candidates are now chosen by a hash of the touched symbol's ID: deterministic,
+uncorrelated with the ordering strategies share.
+
+**Four calibrations are the reason to trust any number this produces.** A
+size-only ranking, that ranking reversed, and plain ID order must all score
+chance; an oracle must score ~100%. The first three catch a leak, the fourth
+catches a measure with no power. If one of them starts failing, the column is
+meaningless until it passes again — the numbers will still look plausible.
 
 ### Size-stratified precision
 
