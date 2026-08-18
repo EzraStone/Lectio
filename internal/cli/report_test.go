@@ -177,3 +177,61 @@ func TestReportRendersWithNothingInIt(t *testing.T) {
 		t.Error("an empty report rendered nothing at all")
 	}
 }
+
+// Chance is 50% and the column is read against it, so the caption has to say
+// so — it is the only number in the report interpretable without a baseline
+// beside it.
+func TestMatchedColumnStatesItsChanceLevel(t *testing.T) {
+	rep := fileReport()
+	rep.MatchedPairs = 2891
+	rep.MatchedCases = 67
+	for i := range rep.Aggregates {
+		rep.Aggregates[i].MatchedA = 0.495
+	}
+
+	env, out, _ := testEnv()
+	renderReport(env, rep)
+	got := plain(out.String())
+
+	if !strings.Contains(got, "matched") {
+		t.Fatalf("no matched column:\n%s", got)
+	}
+	for _, want := range []string{"2891 size-matched pairs", "67 cases", "50% is chance"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("caption is missing %q:\n%s", want, got)
+		}
+	}
+}
+
+// Telling a reader that a file run paired declarations describes a measure it
+// did not run.
+func TestMatchedCaptionFollowsTheTarget(t *testing.T) {
+	rep := fileReport()
+	rep.MatchedPairs, rep.MatchedCases = 100, 10
+
+	// The caption wraps, so line breaks fall inside the phrase being checked.
+	flat := func(s string) string { return strings.Join(strings.Fields(s), " ") }
+
+	env, out, _ := testEnv()
+	renderReport(env, rep)
+	if got := flat(plain(out.String())); !strings.Contains(got, "for each file the contributor touched") {
+		t.Errorf("a file target did not describe pairing files:\n%s", got)
+	}
+
+	rep.Target = backtest.TargetSymbols
+	env2, out2, _ := testEnv()
+	renderReport(env2, rep)
+	if got := flat(plain(out2.String())); !strings.Contains(got, "for each declaration the contributor touched") {
+		t.Errorf("a symbolic target did not describe pairing declarations:\n%s", got)
+	}
+}
+
+// A run with no pairs must print no column at all rather than a blank one
+// implying a control it never applied.
+func TestNoMatchedColumnWithoutPairs(t *testing.T) {
+	env, out, _ := testEnv()
+	renderReport(env, fileReport()) // MatchedPairs is zero
+	if got := plain(out.String()); strings.Contains(got, "size-matched pairs") {
+		t.Errorf("a run with no pairs printed the matched caption:\n%s", got)
+	}
+}
