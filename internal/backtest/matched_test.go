@@ -174,3 +174,72 @@ func TestWithinRatio(t *testing.T) {
 		}
 	}
 }
+
+// A case the pairing could not reach has not been measured. Averaging its
+// absence as zero would report every strategy far below chance in proportion
+// to how often that happened, which is a fact about the corpus rather than
+// about any ranking.
+func TestUnpairedCasesDoNotDragTheAverageDown(t *testing.T) {
+	results := []CaseResult{
+		{
+			Case:   Case{Repo: "r", RewindTo: "a", Contributor: "x"},
+			Scores: []Score{{Strategy: "lectio", Precision: 0.2, Matched: 0.6, Pairs: 10}},
+		},
+		{
+			// Same case shape, but the pairing found nothing usable.
+			Case:   Case{Repo: "r", RewindTo: "b", Contributor: "y"},
+			Scores: []Score{{Strategy: "lectio", Precision: 0.2, Matched: 0, Pairs: 0}},
+		},
+	}
+	rep := Summarize(results, 10)
+
+	var got float64
+	for _, a := range rep.Aggregates {
+		if a.Strategy == "lectio" {
+			got = a.MatchedA
+		}
+	}
+	if got != 0.6 {
+		t.Errorf("MatchedA = %v, want 0.6 — the unpaired case was averaged in as zero", got)
+	}
+	if rep.MatchedCases != 1 {
+		t.Errorf("MatchedCases = %d, want 1", rep.MatchedCases)
+	}
+	if rep.MatchedPairs != 10 {
+		t.Errorf("MatchedPairs = %d, want 10", rep.MatchedPairs)
+	}
+}
+
+// Pairs and cases are different numbers and the caption reports both. Calling
+// two cases 'two pairs' understates the evidence by an order of magnitude.
+func TestMatchedPairsCountsPairsNotCases(t *testing.T) {
+	var results []CaseResult
+	for i := 0; i < 3; i++ {
+		results = append(results, CaseResult{
+			Case:   Case{Repo: "r", RewindTo: string(rune('a' + i)), Contributor: "x"},
+			Scores: []Score{{Strategy: "lectio", Matched: 0.5, Pairs: 7}},
+		})
+	}
+	rep := Summarize(results, 10)
+
+	if rep.MatchedPairs != 21 {
+		t.Errorf("MatchedPairs = %d, want 21 (3 cases x 7 pairs)", rep.MatchedPairs)
+	}
+	if rep.MatchedCases != 3 {
+		t.Errorf("MatchedCases = %d, want 3", rep.MatchedCases)
+	}
+}
+
+// A file-target run produces no pairs, and the report must not imply a control
+// it never applied.
+func TestFileTargetsProduceNoMatchedColumn(t *testing.T) {
+	rep := Summarize([]CaseResult{{
+		Case:   Case{Repo: "r", RewindTo: "a", Contributor: "x"},
+		Target: TargetTouched,
+		Scores: []Score{{Strategy: "lectio", Precision: 0.4}},
+	}}, 10)
+
+	if rep.MatchedPairs != 0 || rep.MatchedCases != 0 {
+		t.Errorf("a file target reported %d pairs over %d cases", rep.MatchedPairs, rep.MatchedCases)
+	}
+}
