@@ -425,8 +425,12 @@ type Report struct {
 	Aggregates []Aggregate `json:"aggregates"`
 	// Medians is the median precision per strategy, keyed by name.
 	Medians map[string]float64 `json:"medians"`
-	// MatchedPairs totals the pairs behind the matched-pair column.
+	// MatchedPairs totals the size-matched pairs behind that column, summed
+	// over every case that produced any. Pairs, not cases — the distinction
+	// matters because it is the number a reader sizes the result by.
 	MatchedPairs int `json:"matched_pairs"`
+	// MatchedCases counts the cases that contributed pairs.
+	MatchedCases int `json:"matched_cases"`
 	// Strata holds mean precision per strategy within each file-size quartile.
 	Strata []StratumAggregate `json:"strata"`
 	// Collapse is the symbol-to-file rule the scored cases ran under, carried
@@ -494,6 +498,7 @@ func Summarize(results []CaseResult, k int) Report {
 	recalls := map[string][]float64{}
 	mrrs := map[string][]float64{}
 	matched := map[string][]float64{}
+	matchedPairs := map[string]int{}
 	strata := map[stratumKey][]float64{}
 	spreads := map[stratumKey][]float64{}
 	var order []string
@@ -532,6 +537,7 @@ func Summarize(results []CaseResult, k int) Report {
 			// happened.
 			if s.Pairs > 0 {
 				matched[s.Strategy] = append(matched[s.Strategy], s.Matched)
+				matchedPairs[s.Strategy] += s.Pairs
 			}
 		}
 		for _, ss := range r.Strata {
@@ -548,7 +554,12 @@ func Summarize(results []CaseResult, k int) Report {
 		a.MatchedA = MeanMatched(matched[name])
 		rep.Aggregates = append(rep.Aggregates, a)
 		rep.Medians[name] = Median(precisions[name])
-		if n := len(matched[name]); n > rep.MatchedPairs {
+		if n := len(matched[name]); n > rep.MatchedCases {
+			rep.MatchedCases = n
+		}
+		// Pairs, not cases. Every strategy faces the same pairs, so the max
+		// across strategies is the run's total.
+		if n := matchedPairs[name]; n > rep.MatchedPairs {
 			rep.MatchedPairs = n
 		}
 	}

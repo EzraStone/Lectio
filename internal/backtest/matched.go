@@ -29,6 +29,17 @@ const MaxSizeRatio = 1.25
 // anything. Below this, one lucky pair moves the number by ten points.
 const MinPairs = 5
 
+// MatchedChance is what a strategy scores when it knows nothing the pairing
+// did not already equalize. Half.
+const MatchedChance = 0.5
+
+// MatchedMargin is how far from chance a result has to sit before it is worth
+// reading as an effect rather than as noise.
+//
+// Two points, matching the level the ablation table is read at. Below it, a
+// strategy is doing what a coin does.
+const MatchedMargin = 0.02
+
 // BuildMatchedPairs pairs every ground-truth symbol with a size-matched symbol
 // the contributor did not touch.
 //

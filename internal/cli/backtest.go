@@ -221,8 +221,17 @@ func renderReport(env *Env, r backtest.Report) {
 			"  graded against %s — not the spec's primary measure", what)))
 	}
 	env.out("")
-	env.out("  %-26s %10s %10s %10s %8s", "strategy", "prec@"+itoa(r.K), "recall", "MRR", "median")
-	env.out("  %s", dashes(68))
+	// The matched column only exists on symbolic runs, and printing an empty
+	// one on a file run would imply a control that was never applied.
+	matched := r.MatchedPairs > 0
+	if matched {
+		env.out("  %-26s %10s %10s %10s %8s %9s",
+			"strategy", "prec@"+itoa(r.K), "recall", "MRR", "median", "matched")
+		env.out("  %s", dashes(78))
+	} else {
+		env.out("  %-26s %10s %10s %10s %8s", "strategy", "prec@"+itoa(r.K), "recall", "MRR", "median")
+		env.out("  %s", dashes(68))
+	}
 
 	for _, a := range r.Aggregates {
 		// Pad first, colour second. Width verbs count bytes, and ANSI escapes
@@ -232,8 +241,35 @@ func renderReport(env *Env, r backtest.Report) {
 		if a.Strategy == "lectio" {
 			label = env.accent(label)
 		}
-		env.out("  %s %9.1f%% %9.1f%% %10.3f %7.1f%%",
+		row := fmt.Sprintf("  %s %9.1f%% %9.1f%% %10.3f %7.1f%%",
 			label, a.PrecisionA*100, a.RecallA*100, a.MRR, r.Medians[a.Strategy]*100)
+		if matched {
+			// Chance is 50%. Colour marks which side of it a strategy landed
+			// on, because the whole value of this column is that it reads
+			// without a baseline beside it.
+			cell := fmt.Sprintf("%8.1f%%", a.MatchedA*100)
+			switch {
+			case a.MatchedA >= backtest.MatchedChance+backtest.MatchedMargin:
+				cell = env.good(cell)
+			case a.MatchedA <= backtest.MatchedChance-backtest.MatchedMargin:
+				cell = env.bad(cell)
+			default:
+				cell = env.dim(cell)
+			}
+			row += " " + cell
+		}
+		env.out("%s", row)
+	}
+
+	if matched {
+		env.out("")
+		for _, l := range wrap(fmt.Sprintf(
+			"matched: accuracy over %d size-matched pairs from %d cases — for each "+
+				"declaration the contributor touched, one of the same size they did not. "+
+				"%.0f%% is chance, and size cannot beat chance here by construction.",
+			r.MatchedPairs, r.MatchedCases, backtest.MatchedChance*100), 72) {
+			env.out("%s", env.dim("  "+l))
+		}
 	}
 
 	env.out("")
