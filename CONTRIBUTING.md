@@ -46,6 +46,22 @@ If a run disappoints and you want to adjust a threshold, that is exactly the
 moment not to. Write down the new rule, say why it is better on its own terms,
 and re-run everything under it.
 
+### The matched-pair calibrations are part of the result
+
+`TestSizeOnlyRankingScoresChance` and its three siblings are not test hygiene.
+They are the only reason any number in the matched column can be believed.
+
+A leak in the pairing does not produce implausible output. The first version
+put every strategy between 28.8% and 46.8% — all below the 50% that a
+size-matched pair makes chance by construction — and it reads like a finding
+until you notice nothing can be below chance there. The cause was that twins
+were consumed in ID order while every strategy breaks ties by ID.
+
+If one of those four starts failing, the matched column is meaningless until it
+passes again, and it will go on printing plausible numbers throughout. Do not
+adjust the calibration to accommodate a change to the pairing; adjust the
+pairing.
+
 ### Controls are not baselines
 
 `Baselines()` decides the gate — the four the spec names. `Controls()` is
