@@ -267,11 +267,15 @@ func renderReport(env *Env, r backtest.Report) {
 		if r.Target.Symbolic() {
 			unit = "declaration"
 		}
+		// Out of how many, not just how many. File-level matching reaches
+		// under half the cases — a repository has tens of files where it has
+		// thousands of declarations, so exact size matches are much rarer —
+		// and a reader sizing the result needs the denominator.
 		for _, l := range wrap(fmt.Sprintf(
-			"matched: accuracy over %d size-matched pairs from %d cases — for each "+
+			"matched: accuracy over %d size-matched pairs from %d of %d cases — for each "+
 				"%s the contributor touched, one of the same size they did not. "+
 				"%.0f%% is chance, and size cannot beat chance here by construction.",
-			r.MatchedPairs, r.MatchedCases, unit, backtest.MatchedChance*100), 72) {
+			r.MatchedPairs, r.MatchedCases, r.Cases, unit, backtest.MatchedChance*100), 72) {
 			env.out("%s", env.dim("  "+l))
 		}
 	}

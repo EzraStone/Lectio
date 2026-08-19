@@ -196,7 +196,7 @@ func TestMatchedColumnStatesItsChanceLevel(t *testing.T) {
 	if !strings.Contains(got, "matched") {
 		t.Fatalf("no matched column:\n%s", got)
 	}
-	for _, want := range []string{"2891 size-matched pairs", "67 cases", "50% is chance"} {
+	for _, want := range []string{"2891 size-matched pairs", "67 of 85 cases", "50% is chance"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("caption is missing %q:\n%s", want, got)
 		}
