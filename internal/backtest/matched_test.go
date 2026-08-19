@@ -243,3 +243,59 @@ func TestFileTargetsProduceNoMatchedColumn(t *testing.T) {
 		t.Errorf("a file target reported %d pairs over %d cases", rep.MatchedPairs, rep.MatchedCases)
 	}
 }
+
+// The selection has to be reproducible: a Gate A number that moves between
+// runs is not evidence, and this is now the only randomized step in the
+// harness.
+func TestPickTiedIsDeterministic(t *testing.T) {
+	tied := []string{"a", "b", "c", "d", "e", "f", "g"}
+	first := pickTied(tied, "seed/one")
+	for i := 0; i < 200; i++ {
+		if got := pickTied(tied, "seed/one"); got != first {
+			t.Fatalf("pickTied moved between calls: %q then %q", first, got)
+		}
+	}
+}
+
+// Different seeds must reach different candidates, or every touched symbol
+// would take the same twin and the pairing would collapse to one comparison.
+func TestPickTiedSpreadsAcrossCandidates(t *testing.T) {
+	tied := []string{"a", "b", "c", "d", "e", "f", "g", "h"}
+	seen := map[string]bool{}
+	for i := 0; i < 200; i++ {
+		seen[pickTied(tied, fmt.Sprintf("pkg.Symbol%03d", i))] = true
+	}
+	if len(seen) < len(tied)/2 {
+		t.Errorf("200 seeds reached only %d of %d candidates — selection is not spreading",
+			len(seen), len(tied))
+	}
+}
+
+// The selection must not depend on position, which is exactly what the
+// original bug did. Shuffling the candidate list has to change which one is
+// picked in a way that carries no ordering information — the useful assertion
+// is that a sorted list and a reversed list do not systematically favour the
+// same end.
+func TestPickTiedDoesNotFavourAnEnd(t *testing.T) {
+	tied := []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j"}
+	firstHalf := 0
+	for i := 0; i < 400; i++ {
+		got := pickTied(tied, fmt.Sprintf("s%04d", i))
+		for j, id := range tied {
+			if id == got && j < len(tied)/2 {
+				firstHalf++
+			}
+		}
+	}
+	// A rule that took the first candidate would score 400 here.
+	if firstHalf < 120 || firstHalf > 280 {
+		t.Errorf("%d of 400 selections came from the first half — the choice is "+
+			"correlated with position", firstHalf)
+	}
+}
+
+func TestPickTiedOnASingleCandidate(t *testing.T) {
+	if got := pickTied([]string{"only"}, "seed"); got != "only" {
+		t.Errorf("pickTied = %q, want only", got)
+	}
+}
