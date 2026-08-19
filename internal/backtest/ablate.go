@@ -63,6 +63,16 @@ type Contribution struct {
 	// Delta is the default score minus Without. Positive means the signal
 	// helps; negative means removing it would improve the ranking.
 	Delta float64
+	// MatchedWithout and MatchedDelta are the same two numbers on size-matched
+	// pairs.
+	//
+	// Worth reading before the precision pair, on any run that has them. A
+	// signal can lift precision purely by preferring larger candidates, and the
+	// first four runs are what that looks like; on matched pairs it cannot, so
+	// a positive delta there is information the pairing did not already
+	// remove.
+	MatchedWithout float64
+	MatchedDelta   float64
 }
 
 // Contributions reads an ablation report back into per-signal effects.
@@ -71,13 +81,16 @@ type Contribution struct {
 // "this was a plain run" from "every signal measured zero".
 func Contributions(rep Report) []Contribution {
 	scores := make(map[string]float64, len(rep.Aggregates))
+	matched := make(map[string]float64, len(rep.Aggregates))
 	for _, a := range rep.Aggregates {
 		scores[a.Strategy] = a.PrecisionA
+		matched[a.Strategy] = a.MatchedA
 	}
 	base, ok := scores[DefaultVariant]
 	if !ok {
 		return nil
 	}
+	matchedBase := matched[DefaultVariant]
 
 	var out []Contribution
 	for _, sig := range rank.AllSignals {
@@ -86,7 +99,13 @@ func Contributions(rep Report) []Contribution {
 		if !ok {
 			continue
 		}
-		out = append(out, Contribution{Signal: sig, Without: without, Delta: base - without})
+		out = append(out, Contribution{
+			Signal:         sig,
+			Without:        without,
+			Delta:          base - without,
+			MatchedWithout: matched[name],
+			MatchedDelta:   matchedBase - matched[name],
+		})
 	}
 	if len(out) == 0 {
 		return nil

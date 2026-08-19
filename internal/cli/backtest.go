@@ -444,21 +444,50 @@ func renderContributions(env *Env, r backtest.Report) {
 		return
 	}
 
+	matched := r.MatchedPairs > 0
+
 	env.out("")
 	env.out("%s", env.bold("What each signal is worth"))
-	env.out("%s", env.dim("  the change in precision@"+itoa(r.K)+" from removing it"))
-	env.out("")
+	if matched {
+		env.out("%s", env.dim("  the change from removing it, on both measures"))
+		env.out("")
+		env.out("  %-20s %12s %12s", "", "prec@"+itoa(r.K), "matched")
+	} else {
+		env.out("%s", env.dim("  the change in precision@"+itoa(r.K)+" from removing it"))
+		env.out("")
+	}
+
+	pp := func(d float64) (string, func(string) string) {
+		switch {
+		case d < -0.001:
+			return "", env.bad
+		case d <= 0.001:
+			return " ", env.dim
+		default:
+			return "+", env.good
+		}
+	}
 
 	for _, c := range cs {
-		sign := "+"
-		render := env.good
-		switch {
-		case c.Delta < -0.001:
-			sign, render = "", env.bad
-		case c.Delta <= 0.001:
-			sign, render = " ", env.dim
+		sign, render := pp(c.Delta)
+		row := fmt.Sprintf("  %-20s %s", c.Signal,
+			render(fmt.Sprintf("%11s", fmt.Sprintf("%s%.1f pp", sign, c.Delta*100))))
+		if matched {
+			msign, mrender := pp(c.MatchedDelta)
+			row += " " + mrender(fmt.Sprintf("%11s",
+				fmt.Sprintf("%s%.1f pp", msign, c.MatchedDelta*100)))
 		}
-		env.out("  %-20s %s", c.Signal, render(fmt.Sprintf("%s%.1f pp", sign, c.Delta*100)))
+		env.out("%s", row)
+	}
+
+	if matched {
+		env.out("")
+		for _, l := range wrap(
+			"Read the matched column first. A signal can lift precision purely by "+
+				"preferring larger candidates; on size-matched pairs it cannot, so a "+
+				"positive delta there is information the pairing did not already remove.", 70) {
+			env.out("%s", env.dim("  "+l))
+		}
 	}
 
 	if harmful := backtest.Harmful(cs); len(harmful) > 0 {
