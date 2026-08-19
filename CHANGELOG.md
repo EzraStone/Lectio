@@ -27,8 +27,11 @@ ranking, that ranking reversed, and ID order must all score chance, and an
 oracle must score ~100%.
 
 The same instrument at file granularity turned up the only positive signal in
-seven runs: churn at 56.5%, against lectio's 50.5% and largest-files' 49.1%.
-Thin — 426 pairs from 33 cases — and recorded as a lead rather than a result.
+seven runs: churn at 55.8%, against largest-files' 49.9%, replicated across
+426 and 577 pairs with all three history baselines above chance and both size
+strategies on it. Ablating on that measure shows removing orphaning lifts
+lectio from 52.2% to 55.2% — one signal carries the effect, another cancels
+it, and none of this is visible on precision@10.
 
 **Symbol-granularity grading.** Every earlier measure scored file paths, and
 file size is a prior on any of them — this removed it. `vcs.Git.Hunks` reads
