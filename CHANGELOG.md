@@ -26,6 +26,10 @@ ties by ID. Four calibrations now stand behind the number — a size-only
 ranking, that ranking reversed, and ID order must all score chance, and an
 oracle must score ~100%.
 
+The same instrument at file granularity turned up the only positive signal in
+seven runs: churn at 56.5%, against lectio's 50.5% and largest-files' 49.1%.
+Thin — 426 pairs from 33 cases — and recorded as a lead rather than a result.
+
 **Symbol-granularity grading.** Every earlier measure scored file paths, and
 file size is a prior on any of them — this removed it. `vcs.Git.Hunks` reads
 changed line ranges, `golang.ResolveSpans` maps them to declarations with a

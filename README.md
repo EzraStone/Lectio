@@ -281,7 +281,14 @@ which makes the column readable with no baseline beside it:
 <sub>The precision column and the matched column disagree completely, which is
 the finding: everything precision@10 rewards, a size-matched pair removes.</sub>
 
-2,891 pairs from 67 cases, everything inside ±2 points of chance. The control
+2,891 pairs from 67 cases, everything inside ±2 points of chance.
+
+At file granularity the same instrument gives one result worth following:
+**churn scores 56.5%** while lectio scores 50.5% and largest-files 49.1%.
+That is the only cell across seven runs clear of the noise margin, and churn
+is a signal inside lectio — removing it drops the ranking to 49.5%. It runs on
+426 pairs from 33 cases against the symbol target's 2,891 from 67, so it is a
+lead rather than a finding, and confirming it needs a wider corpus. The control
 makes the point cleanly: largest-symbols more than doubled lectio on precision
 and scores 52.0% here, because length was all it ever knew. Lectio scores
 49.5% — seven signals, a call graph and twelve months of history producing a
