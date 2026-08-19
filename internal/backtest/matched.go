@@ -28,6 +28,17 @@ const MaxSizeRatio = 1.25
 
 // MinPairs is the fewest pairs a case needs before its accuracy means
 // anything. Below this, one lucky pair moves the number by ten points.
+//
+// How much of the corpus clears it depends sharply on granularity, and the
+// difference is a real limit on what the file-level number can say:
+//
+//	symbols   67 of 75 cases   2,891 pairs
+//	files     33 of 77 cases     426 pairs
+//
+// A repository has tens of files where it has thousands of declarations, so
+// exact size matches are far rarer at file level and most cases cannot be
+// paired at all. Any file-granularity result here rests on under half the
+// corpus, and that belongs beside the number rather than in a footnote.
 const MinPairs = 5
 
 // MatchedChance is what a strategy scores when it knows nothing the pairing
