@@ -57,6 +57,23 @@ func (iv Interval) ExcludesChance() bool {
 // DefaultLevel is the coverage every interval in a report is computed at.
 const DefaultLevel = 0.95
 
+// MinClusters is the fewest repositories a bootstrap interval may be computed
+// from.
+//
+// A percentile bootstrap needs enough distinct resamples for its tails to mean
+// something, and with k clusters there are only C(2k-1, k) of them: four
+// repositories give 35, which is not a distribution. The interval it produces
+// is not merely wide-with-uncertainty, it is arbitrary, and it can come out
+// narrow.
+//
+// This is not hypothetical. A ratio sweep run at exact size matching reached
+// four repositories and reported largest-files at 60.3% with an interval that
+// cleared chance — from 171 pairs where a size strategy cannot, by
+// construction, know anything. Eight is a floor rather than a recommendation:
+// intervals from ten to fifteen repositories are still wide enough that
+// nothing in this project separates two strategies at that scale.
+const MinClusters = 8
+
 // BootstrapIters is how many resamples the cluster bootstrap draws.
 //
 // Two thousand is enough that the 2.5th and 97.5th percentiles are stable to
@@ -131,11 +148,11 @@ func BootstrapInterval(obs []Observation, level float64, iters int, seed int64) 
 	}
 
 	point := meanAccuracy(obs)
-	if len(clusters) == 1 {
-		// One repository is not a sample of repositories. Report the point
-		// estimate with no claim about the interval rather than a fabricated
-		// zero-width one.
-		return Interval{Point: point, Lo: 0, Hi: 1, Level: level, Units: 1}
+	if len(clusters) < MinClusters {
+		// Too few repositories to resample. Report the point estimate with no
+		// claim about the interval rather than a confident-looking one drawn
+		// from a handful of distinct resamples.
+		return Interval{Point: point, Lo: 0, Hi: 1, Level: level, Units: len(clusters)}
 	}
 
 	rng := rand.New(rand.NewSource(seed))
