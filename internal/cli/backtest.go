@@ -43,6 +43,8 @@ func runBacktest(ctx context.Context, env *Env, args []string) error {
 			"score the named candidate weightings instead of a leave-one-out ablation")
 		sizeRatio = fs.Float64("size-ratio", float64(backtest.MaxSizeRatio),
 			"how unequal a size-matched pair may be; 1.0 admits only exact matches")
+		sweep = fs.Bool("sweep-ratio", false,
+			"also report the matched column at several pairing ratios; costs almost nothing")
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -88,6 +90,9 @@ func runBacktest(ctx context.Context, env *Env, args []string) error {
 	runOpts.Target = targetVar
 	runOpts.Workers = *workers
 	runOpts.SizeRatio = backtest.SizeRatio(*sizeRatio)
+	if *sweep {
+		runOpts.SweepRatios = backtest.SweepRatios
+	}
 	if *offline {
 		runOpts.ModuleTimeout = -1
 	}
@@ -335,6 +340,7 @@ func renderReport(env *Env, r backtest.Report) {
 			env.out("%s", env.dim("  "+l))
 		}
 		renderConsistency(env, r)
+		renderSweep(env, r)
 	}
 
 	env.out("")
@@ -638,6 +644,77 @@ func renderConsistency(env *Env, r backtest.Report) {
 			"chance in, one vote each. sign p is two-sided and exact. A strategy "+
 			"picking up something general wins most repositories by a little; one "+
 			"carried by an outlier wins about half of them by a lot.", 72) {
+		env.out("%s", env.dim("  "+l))
+	}
+}
+
+// renderSweep prints the matched column recomputed at several pairing ratios.
+//
+// Read it down a column rather than across a row. A finding that holds at every
+// ratio is a finding about the data; one that appears only at the loose end is
+// a finding about how much size the pairing was still letting through.
+func renderSweep(env *Env, r backtest.Report) {
+	ratios, rows := backtest.SweepTable(r.Sweep)
+	if len(ratios) == 0 {
+		return
+	}
+
+	env.out("")
+	header := fmt.Sprintf("  %-26s", "strategy")
+	for _, ratio := range ratios {
+		header += fmt.Sprintf(" %9s", fmt.Sprintf("%.2fx", float64(ratio)))
+	}
+	env.out("%s", header)
+	env.out("  %s", dashes(28+10*len(ratios)))
+
+	for _, row := range rows {
+		label := fmt.Sprintf("%-26s", row.Strategy)
+		if row.Strategy == "lectio" {
+			label = env.accent(label)
+		}
+		line := "  " + label
+		for _, ratio := range ratios {
+			cell, ok := row.At(ratio)
+			if !ok {
+				// Not the same as chance: the question could not be asked at
+				// this ratio, because too few pairs survived it.
+				line += fmt.Sprintf(" %9s", env.dim("—"))
+				continue
+			}
+			text := fmt.Sprintf("%8.1f%%", cell.Matched*100)
+			switch {
+			case !cell.CI.ExcludesChance():
+				text = env.dim(text)
+			case cell.Matched > backtest.MatchedChance:
+				text = env.good(text)
+			default:
+				text = env.bad(text)
+			}
+			line += " " + text
+		}
+		env.out("%s", line)
+	}
+
+	// The denominators, which is the half of the sweep that is easy to skip
+	// and changes how every cell reads.
+	counts := fmt.Sprintf("  %-26s", "cases / pairs")
+	for _, ratio := range ratios {
+		cases, pairs := 0, 0
+		for _, row := range rows {
+			if cell, ok := row.At(ratio); ok && cell.Cases > cases {
+				cases, pairs = cell.Cases, cell.Pairs
+			}
+		}
+		counts += fmt.Sprintf(" %9s", fmt.Sprintf("%d/%d", cases, pairs))
+	}
+	env.out("  %s", dashes(28+10*len(ratios)))
+	env.out("%s", env.dim(counts))
+
+	for _, l := range wrap(
+		"Read down a column, not across a row. A tighter ratio leaves less size "+
+			"information inside a pair and reaches fewer cases, so the strictest "+
+			"column is the cleanest and the thinnest. A result that only appears at "+
+			"the loose end is a result about the pairing bound.", 72) {
 		env.out("%s", env.dim("  "+l))
 	}
 }
