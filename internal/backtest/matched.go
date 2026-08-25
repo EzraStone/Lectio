@@ -45,11 +45,17 @@ const MinPairs = 5
 // did not already equalize. Half.
 const MatchedChance = 0.5
 
-// MatchedMargin is how far from chance a result has to sit before it is worth
-// reading as an effect rather than as noise.
+// MatchedMargin is the tolerance the calibrations are checked against: a
+// ranking that must score chance has to land within two points of it.
 //
-// Two points, matching the level the ablation table is read at. Below it, a
-// strategy is doing what a coin does.
+// It was once the reading rule for real runs too, and it should not have been.
+// Two points was chosen by eye and is roughly right at 2,891 pairs and badly
+// wrong at 426 — the file-level runs it was applied to have a 95% half-width
+// near five points even before the dependence between cases in a repository is
+// accounted for. Real runs are now read against a bootstrap interval computed
+// from the run itself; see interval.go. This constant governs only the
+// synthetic corpus, where the answer is known and the sample is whatever the
+// test constructs.
 const MatchedMargin = 0.02
 
 // BuildMatchedPairs pairs every ground-truth symbol with a size-matched symbol
