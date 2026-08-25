@@ -105,6 +105,17 @@ type Aggregate struct {
 	// MatchedA is mean accuracy over size-matched pairs. 0.5 is chance, and
 	// unlike precision it is readable without a baseline beside it.
 	MatchedA float64 `json:"matched"`
+	// MatchedCI is the cluster-bootstrap interval around MatchedA, resampling
+	// repositories. This is what decides whether a row is an effect: a row
+	// whose interval contains 0.5 has not been shown to know anything the
+	// pairing did not already remove, however far its point estimate sits from
+	// chance.
+	MatchedCI Interval `json:"matched_ci,omitzero"`
+	// MatchedWilson is the same accuracy's interval computed over pairs as
+	// though each were independent. It is always narrower and always wrong in
+	// the same direction; it is here so the difference is visible rather than
+	// assumed.
+	MatchedWilson Interval `json:"matched_wilson,omitzero"`
 	// Wins counts cases where this strategy beat a comparison strategy. Filled
 	// in by the report, not by the aggregation.
 	Wins int `json:"wins"`

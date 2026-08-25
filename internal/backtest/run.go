@@ -537,6 +537,12 @@ type Verdict struct {
 // Hollow reports a pass that a control undercuts.
 func (v Verdict) Hollow() bool { return v.Passed && len(v.OutscoredByControl) > 0 }
 
+// bootstrapSeed fixes the resampling so intervals reproduce.
+//
+// Any constant would do; this one is arbitrary and is written down so nobody
+// has to wonder whether a run picked a flattering draw.
+const bootstrapSeed = 20260814
+
 // Summarize turns per-case results into the report Gate A is decided on.
 func Summarize(results []CaseResult, k int) Report {
 	rep := Report{Schema: ReportSchema, K: k, Medians: map[string]float64{}}
@@ -546,6 +552,8 @@ func Summarize(results []CaseResult, k int) Report {
 	mrrs := map[string][]float64{}
 	matched := map[string][]float64{}
 	matchedPairs := map[string]int{}
+	matchedObs := map[string][]Observation{}
+	matchedWins := map[string]float64{}
 	strata := map[stratumKey][]float64{}
 	spreads := map[stratumKey][]float64{}
 	var order []string
@@ -592,6 +600,12 @@ func Summarize(results []CaseResult, k int) Report {
 			if s.Pairs > 0 {
 				matched[s.Strategy] = append(matched[s.Strategy], s.Matched)
 				matchedPairs[s.Strategy] += s.Pairs
+				matchedObs[s.Strategy] = append(matchedObs[s.Strategy], Observation{
+					Repo:     r.Case.Repo,
+					Accuracy: s.Matched,
+					Pairs:    s.Pairs,
+				})
+				matchedWins[s.Strategy] += s.Matched * float64(s.Pairs)
 			}
 		}
 		for _, ss := range r.Strata {
@@ -606,6 +620,14 @@ func Summarize(results []CaseResult, k int) Report {
 	for _, name := range order {
 		a := Mean(name, precisions[name], recalls[name], mrrs[name])
 		a.MatchedA = MeanMatched(matched[name])
+		if len(matchedObs[name]) > 0 {
+			// The seed is fixed rather than drawn, so re-running the same
+			// command reproduces the interval as exactly as it reproduces the
+			// point estimate. A confidence interval that wobbled between runs
+			// would be one more number nobody could check.
+			a.MatchedCI = BootstrapInterval(matchedObs[name], DefaultLevel, BootstrapIters, bootstrapSeed)
+			a.MatchedWilson = WilsonInterval(matchedWins[name], matchedPairs[name], DefaultLevel)
+		}
 		rep.Aggregates = append(rep.Aggregates, a)
 		rep.Medians[name] = Median(precisions[name])
 		if n := len(matched[name]); n > rep.MatchedCases {
