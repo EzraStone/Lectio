@@ -195,6 +195,14 @@ func prepareModules(ctx context.Context, tree string, timeout time.Duration) {
 	if _, err := os.Stat(filepath.Join(tree, "go.mod")); err != nil {
 		return
 	}
+	// Downloading is what fills the disk, and a full disk does not fail one
+	// case — it fails every remaining case, in ways that read as a corpus full
+	// of hard revisions. Stopping the downloads leaves the run degrading
+	// honestly: cases type-check from whatever is already cached, and the
+	// health guard discards what is too thin to score.
+	if diskIsTight(tree) {
+		return
+	}
 
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
