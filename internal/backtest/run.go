@@ -57,6 +57,9 @@ type CaseResult struct {
 	// GroundSymbols is the attributed answer set for a symbolic target. Empty
 	// for file targets, where the ground truth is on the Case itself.
 	GroundSymbols []core.SymbolID
+	// SizeRatio records the pairing ratio this case was scored at, so the
+	// report can carry it without the caller passing it twice.
+	SizeRatio SizeRatio
 	// Variants records which variant set this case was scored under.
 	Variants VariantKind
 }
@@ -145,6 +148,10 @@ type RunOptions struct {
 	// Variants scores several weightings against the same index. Empty means
 	// the single default weighting.
 	Variants []Variant
+	// SizeRatio bounds how unequal a matched pair may be. Zero means
+	// MaxSizeRatio. Varying it is how the matched-pair findings are checked for
+	// dependence on a constant nobody derived.
+	SizeRatio SizeRatio
 	// VariantKind names what Variants is, so a report can say which experiment
 	// it ran rather than inferring it from variant names. Empty means a plain
 	// run.
@@ -234,8 +241,10 @@ func RunCase(ctx context.Context, c Case, opts RunOptions) CaseResult {
 	if opts.Target == "" {
 		opts.Target = DefaultTarget
 	}
+	opts.SizeRatio = opts.SizeRatio.Or(MaxSizeRatio)
 	res := CaseResult{
-		Case: c, Collapse: opts.Collapse, Target: opts.Target, Variants: opts.VariantKind,
+		Case: c, Collapse: opts.Collapse, Target: opts.Target,
+		Variants: opts.VariantKind, SizeRatio: opts.SizeRatio,
 	}
 
 	// Checked before the expensive part. Rewinding and indexing a revision to
@@ -316,7 +325,7 @@ func RunCase(ctx context.Context, c Case, opts RunOptions) CaseResult {
 	// instrument most needs to be pointed at — precision here is what
 	// largest-files won, and the pairing is what says whether that win was
 	// about size.
-	pairs := BuildMatchedPairs(ground, sizes)
+	pairs := BuildMatchedPairsAt(ground, sizes, opts.SizeRatio)
 	if len(pairs) < MinPairs {
 		pairs = nil
 	}
@@ -478,6 +487,10 @@ type Report struct {
 	MatchedPairs int `json:"matched_pairs"`
 	// MatchedCases counts the cases that contributed pairs.
 	MatchedCases int `json:"matched_cases"`
+	// SizeRatio is the pairing ratio this run used. Recorded because two runs
+	// at different ratios are two different measures, and a comparison across
+	// them would be meaningless without saying so.
+	SizeRatio SizeRatio `json:"size_ratio,omitzero"`
 	// Strata holds mean precision per strategy within each file-size quartile.
 	Strata []StratumAggregate `json:"strata"`
 	// Collapse is the symbol-to-file rule the scored cases ran under, carried
@@ -616,6 +629,12 @@ func Summarize(results []CaseResult, k int) Report {
 	}
 
 	rep.CaseSet = fingerprint(results)
+	for _, r := range results {
+		if r.Err == nil && r.SizeRatio.Valid() {
+			rep.SizeRatio = r.SizeRatio
+			break
+		}
+	}
 
 	for _, name := range order {
 		a := Mean(name, precisions[name], recalls[name], mrrs[name])

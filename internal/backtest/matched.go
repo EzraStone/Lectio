@@ -26,6 +26,33 @@ type MatchedPair struct {
 // real should win well clear of it.
 const MaxSizeRatio = 1.25
 
+// SizeRatio is the ratio a particular run pairs at, so the choice can be
+// varied rather than assumed.
+//
+// The constant above is a judgement call sitting underneath every matched-pair
+// number in this project, and it trades two things off against each other in
+// opposite directions. Loosening it admits more pairs, which narrows every
+// interval, and leaves more residual size information inside a pair, which is
+// exactly what the measure exists to remove. Tightening it does the reverse
+// and can starve a corpus of pairs entirely.
+//
+// A finding that only appears at 1.25 is a finding about 1.25. Making the
+// ratio a run parameter is what lets that be checked instead of hoped.
+type SizeRatio float64
+
+// Valid reports whether a ratio can pair anything. At or below 1.0 only exact
+// size matches qualify, which is a legitimate — and very strict — choice; below
+// 1.0 nothing can ever pair.
+func (r SizeRatio) Valid() bool { return r >= 1 }
+
+// Or returns the ratio, falling back to the default when unset.
+func (r SizeRatio) Or(def SizeRatio) SizeRatio {
+	if !r.Valid() {
+		return def
+	}
+	return r
+}
+
 // MinPairs is the fewest pairs a case needs before its accuracy means
 // anything. Below this, one lucky pair moves the number by ten points.
 //
@@ -78,6 +105,12 @@ const MatchedMargin = 0.02
 // each twin used at most once so a single unusual declaration cannot stand in
 // for half the ground truth.
 func BuildMatchedPairs(ground []string, sizes map[string]int) []MatchedPair {
+	return BuildMatchedPairsAt(ground, sizes, MaxSizeRatio)
+}
+
+// BuildMatchedPairsAt is BuildMatchedPairs at a chosen size ratio.
+func BuildMatchedPairsAt(ground []string, sizes map[string]int, ratio SizeRatio) []MatchedPair {
+	ratio = ratio.Or(MaxSizeRatio)
 	inGround := make(map[string]bool, len(ground))
 	for _, id := range ground {
 		inGround[id] = true
@@ -113,7 +146,7 @@ func BuildMatchedPairs(ground []string, sizes map[string]int) []MatchedPair {
 			continue
 		}
 		twin, twinSize, found := nearestUnused(candidates, sizes, size, used, id)
-		if !found || !withinRatio(size, twinSize) {
+		if !found || !withinRatioAt(size, twinSize, ratio) {
 			continue
 		}
 		used[twin] = true
@@ -122,8 +155,11 @@ func BuildMatchedPairs(ground []string, sizes map[string]int) []MatchedPair {
 	return out
 }
 
-// withinRatio reports whether two sizes are close enough to be a fair pair.
-func withinRatio(a, b int) bool {
+// withinRatio reports whether two sizes are close enough to be a fair pair at
+// the default ratio.
+func withinRatio(a, b int) bool { return withinRatioAt(a, b, MaxSizeRatio) }
+
+func withinRatioAt(a, b int, ratio SizeRatio) bool {
 	if a <= 0 || b <= 0 {
 		return false
 	}
@@ -131,7 +167,7 @@ func withinRatio(a, b int) bool {
 	if lo > hi {
 		lo, hi = hi, lo
 	}
-	return float64(hi)/float64(lo) <= MaxSizeRatio
+	return float64(hi)/float64(lo) <= float64(ratio)
 }
 
 // nearestUnused finds a closest-sized unused candidate, chosen so the choice

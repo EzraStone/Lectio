@@ -75,7 +75,7 @@ func scoreSymbolic(ctx context.Context, res *CaseResult, c Case, v *index.View, 
 
 	// Size-matched pairs, built once and shared. Every strategy has to face the
 	// same pairs or the column compares different questions.
-	pairs := BuildMatchedPairs(want, sizes)
+	pairs := BuildMatchedPairsAt(want, sizes, opts.SizeRatio)
 	if len(pairs) < MinPairs {
 		// Not an error: the case is still scored on precision, and the matched
 		// column simply has nothing to say about it.
