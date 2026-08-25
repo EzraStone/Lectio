@@ -1,7 +1,7 @@
 BINARY := lectio
 PKG    := ./...
 
-.PHONY: build test vet fmt fmt-check tidy clean install ci corpus gate-a gate-a-corrected gate-a-symbols coupling
+.PHONY: build test vet fmt fmt-check tidy clean install ci corpus corpus-holdout gate-a gate-a-corrected gate-a-symbols coupling holdout
 
 build:
 	go build -o bin/$(BINARY) ./cmd/lectio
@@ -37,6 +37,10 @@ install:
 corpus: build
 	./bin/$(BINARY) corpus fetch
 
+# The holdout corpus, disjoint from gate-a. Fetch it before running `holdout`.
+corpus-holdout: build
+	./bin/$(BINARY) corpus fetch --manifest corpus/gate-a-holdout.json
+
 # The go/no-go. --ablate costs nothing extra, and without it a FAIL says
 # nothing you can act on.
 gate-a: build
@@ -46,6 +50,13 @@ gate-a: build
 # Reported beside the primary measure, never in place of it.
 gate-a-corrected: build
 	./bin/$(BINARY) backtest --corpus corpus/gate-a.json --ablate --target corrected -v
+
+# The confirmation run: the named candidate weightings, on repositories that
+# did not produce them. This is the only comparison here where the hypothesis
+# predates the evidence — everything else is measured on the corpus that
+# generated it.
+holdout: build
+	./bin/$(BINARY) backtest --corpus corpus/gate-a-holdout.json --candidates --cases 12 -v
 
 # The differentiator, measured directly. Precision@10 cannot see a signal that
 # fires on a few dozen file pairs; this asks the claim as the spec states it.
