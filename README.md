@@ -290,35 +290,42 @@ which makes the column readable with no baseline beside it:
 <sub>The precision column and the matched column disagree completely, which is
 the finding: everything precision@10 rewards, a size-matched pair removes.</sub>
 
-2,891 pairs from 67 cases, everything inside ±2 points of chance.
+2,891 pairs from 67 cases, every strategy within its own interval of chance.
 
-At file granularity the same instrument finds the one thing that does beat
-chance. Churn scores **55.8%**, and all three history-derived baselines sit
-above chance while both size-derived strategies sit on it — a split that
-replicated when the sample was widened from 426 pairs to 577.
+At file granularity the same instrument is not flat: all three history-derived
+baselines sit above chance and both size-derived strategies sit on it. That
+split, and four other hypotheses named in code before anything ran, went to a
+second corpus — thirty repositories that had produced none of the numbers
+above.
 
-Ablating on that measure names what is holding the ranking back: **removing
-orphaning lifts lectio from 52.2% to 55.2%**, which is pure churn's 55.8%
-within noise. One signal carries a modest real effect, another cancels it, and
-the other five do nothing a size-matched pair cannot already explain. None of
-that is visible on precision@10, where orphaning reads as −0.4 points.
+**One of the five survived, and it was not a weighting.**
 
-It is 577 pairs from 47 cases and the wider run contains the narrower one, so
-the next step is an independent corpus rather than a re-reading of this one. The control
-makes the point cleanly: largest-symbols more than doubled lectio on precision
-and scores 52.0% here, because length was all it ever knew. Lectio scores
-49.5% — seven signals, a call graph and twelve months of history producing a
-coin.
+| Hypothesis | gate-a | holdout | Survived? |
+| --- | --- | --- | --- |
+| history beats size on matched pairs | yes | yes | **yes** |
+| removing orphaning is worth +3 pp | +3.0 | −0.1 | no |
+| churn is the best single signal | 55.8% | 56.7% | beaten by recency |
+| recency is the best predictor | 53.5% | **59.2%** | **yes** |
 
-Gate A is a hard stop and it has now been answered seven ways. Nothing below it
-should be built on this ranking. After seven runs the likely reading is not
-that the ranking is behind but that the question is wrong: among declarations
-of equal size, nothing available here separates the ones a newcomer touched
-from the ones they did not. What people *touched* looks too weak a stand-in for
-what they needed to *understand*, which makes this a question for users rather
-than for a bigger corpus. [The write-up](docs/gate-a-2026-08.md#what-this-means)
-has the detail, including the flaw in the first version of this measure and the
-four calibrations that now stand behind it.
+"Most recently modified" is one of the four baselines. It is not one of the
+seven signals. The best available predictor of which of two equally-sized files
+a newcomer touches is simply which one was edited last — 3.9 points clear of
+the full ranking, on a corpus that had no hand in producing the hypothesis.
+
+The orphaning result is the cautionary one. It was the sharpest thing in seven
+runs on the first corpus and it is −0.1 points on the second. That is what a
+holdout is for, and it is why the ranking was never tuned against these
+numbers.
+
+Gate A is a hard stop and it has now been answered eight ways. Nothing below it
+should be built on this ranking. The likely reading is not that the ranking is
+behind but that the question is wrong: among declarations of equal size,
+nothing available here separates the ones a newcomer touched from the ones they
+did not. What people *touched* looks too weak a stand-in for what they needed
+to *understand*, which makes this a question for users rather than for a bigger
+corpus. [The write-up](docs/gate-a-2026-08.md#what-this-means) has the detail,
+including the flaw in the first version of this measure and the four
+calibrations that now stand behind it.
 
 ```sh
 make corpus            # clone the thirty pinned repositories (slow, once)
