@@ -209,6 +209,12 @@ func renderReport(env *Env, r backtest.Report) {
 		// quoted without it cannot be reproduced or compared to another run.
 		env.out("%s", env.dim(fmt.Sprintf("  symbol scores collapsed to files by %s", r.Collapse)))
 	}
+	if r.Variants == backtest.VariantsCandidates {
+		// A different experiment from the gate, and the verdict below still
+		// reads as the gate's. Saying so keeps a candidate row from being
+		// mistaken for a baseline lectio must beat.
+		env.out("%s", env.dim("  comparing candidate weightings — the four baselines still decide the gate"))
+	}
 	if r.CaseSet != "" {
 		// Two runs are only comparable when this matches. Which cases survive
 		// depends on whether each revision's dependencies resolved, so the same
