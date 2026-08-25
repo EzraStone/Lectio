@@ -123,9 +123,6 @@ type Aggregate struct {
 	// MatchedByRepo is the per-repository breakdown behind MatchedRepos, worst
 	// first. Carried in JSON only; the table would be thirty rows per strategy.
 	MatchedByRepo []RepoAccuracy `json:"matched_by_repo,omitempty"`
-	// Wins counts cases where this strategy beat a comparison strategy. Filled
-	// in by the report, not by the aggregation.
-	Wins int `json:"wins"`
 }
 
 // Mean folds per-case scores into an aggregate.
