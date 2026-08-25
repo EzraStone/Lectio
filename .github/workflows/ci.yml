@@ -107,4 +107,6 @@ jobs:
       # quietly — a force-push upstream is invisible until someone tries to
       # quote a number over a corpus that no longer matches its manifest.
       - name: Verify the corpus pins still resolve
-        run: ./bin/lectio corpus verify --manifest corpus/gate-a.json
+        run: |
+          ./bin/lectio corpus verify --manifest corpus/gate-a.json
+          ./bin/lectio corpus verify --manifest corpus/gate-a-holdout.json
