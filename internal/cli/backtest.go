@@ -259,9 +259,9 @@ func renderReport(env *Env, r backtest.Report) {
 	// one on a file run would imply a control that was never applied.
 	matched := r.MatchedPairs > 0
 	if matched {
-		env.out("  %-26s %10s %10s %10s %8s %9s",
-			"strategy", "prec@"+itoa(r.K), "recall", "MRR", "median", "matched")
-		env.out("  %s", dashes(78))
+		env.out("  %-26s %10s %10s %10s %8s %13s",
+			"strategy", "prec@"+itoa(r.K), "recall", "MRR", "median", "matched 95%")
+		env.out("  %s", dashes(82))
 	} else {
 		env.out("  %-26s %10s %10s %10s %8s", "strategy", "prec@"+itoa(r.K), "recall", "MRR", "median")
 		env.out("  %s", dashes(68))
@@ -278,17 +278,18 @@ func renderReport(env *Env, r backtest.Report) {
 		row := fmt.Sprintf("  %s %9.1f%% %9.1f%% %10.3f %7.1f%%",
 			label, a.PrecisionA*100, a.RecallA*100, a.MRR, r.Medians[a.Strategy]*100)
 		if matched {
-			// Chance is 50%. Colour marks which side of it a strategy landed
-			// on, because the whole value of this column is that it reads
-			// without a baseline beside it.
-			cell := fmt.Sprintf("%8.1f%%", a.MatchedA*100)
+			// Chance is 50%, and the interval decides which side of it a
+			// strategy is actually on. Colouring by the point estimate alone
+			// promotes any row that happened to land two points high, which is
+			// well inside what this corpus can resolve.
+			cell := fmt.Sprintf("%7.1f%% ±%3.1f", a.MatchedA*100, a.MatchedCI.HalfWidth()*100)
 			switch {
-			case a.MatchedA >= backtest.MatchedChance+backtest.MatchedMargin:
-				cell = env.good(cell)
-			case a.MatchedA <= backtest.MatchedChance-backtest.MatchedMargin:
-				cell = env.bad(cell)
-			default:
+			case !a.MatchedCI.ExcludesChance():
 				cell = env.dim(cell)
+			case a.MatchedA > backtest.MatchedChance:
+				cell = env.good(cell)
+			default:
+				cell = env.bad(cell)
 			}
 			row += " " + cell
 		}
@@ -310,6 +311,18 @@ func renderReport(env *Env, r backtest.Report) {
 				"%s the contributor touched, one of the same size they did not. "+
 				"%.0f%% is chance, and size cannot beat chance here by construction.",
 			r.MatchedPairs, r.MatchedCases, r.Cases, unit, backtest.MatchedChance*100), 72) {
+			env.out("%s", env.dim("  "+l))
+		}
+		// The ± is what separates a result from a row that landed high, and
+		// where it comes from changes how much of it to believe. Cases from one
+		// repository are not independent observations, so the interval is
+		// bootstrapped over repositories; only rows whose interval clears 50%
+		// are coloured.
+		for _, l := range wrap(fmt.Sprintf(
+			"±: half a 95%% interval, bootstrapped over the %d repositories that "+
+				"produced pairs rather than over the pairs themselves. Only rows whose "+
+				"interval clears %.0f%% are marked.",
+			bootstrapClusters(r), backtest.MatchedChance*100), 72) {
 			env.out("%s", env.dim("  "+l))
 		}
 	}
@@ -556,4 +569,20 @@ func shortRepo(path string) string {
 
 func itoa(i int) string {
 	return fmt.Sprintf("%d", i)
+}
+
+// bootstrapClusters reports how many repositories the intervals were resampled
+// over, read off whichever aggregate carries an interval.
+//
+// Every strategy faces the same cases, so the count is the same on all of
+// them; taking the max rather than the first is defensive against a strategy
+// that produced no pairs at all.
+func bootstrapClusters(r backtest.Report) int {
+	n := 0
+	for _, a := range r.Aggregates {
+		if a.MatchedCI.Units > n {
+			n = a.MatchedCI.Units
+		}
+	}
+	return n
 }
