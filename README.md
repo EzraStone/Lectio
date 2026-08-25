@@ -90,6 +90,7 @@ produce a call graph missing everything in them.
 | `lectio backtest [repo...]` | Gate A: predict what a past newcomer touched |
 | `lectio backtest --coupling` | Gate A's other half: does hidden coupling predict anything |
 | `lectio corpus <status\|pin\|fetch>` | Manage the thirty repositories Gate A runs against |
+| `lectio compare <a.json> <b.json>` | Two runs side by side, if they are comparable |
 | `lectio version` | Version, and the Go release the analysis is capped by |
 
 Useful flags:
@@ -107,8 +108,16 @@ lectio backtest --collapse max    # the symbol-to-file rule; mean by default
 lectio backtest --target corrected  # grade against what they had to fix
 lectio backtest --target symbols  # grade declarations, not file paths
 lectio backtest --coupling        # the second backtest: does the differentiator work?
+lectio backtest --candidates      # score the named candidate weightings
+lectio backtest --workers 4       # cases in parallel; each type-checks a repo
 lectio version                    # and which Go release caps the analysis
 ```
+
+Two runs are only comparable when their case-set fingerprints match — which
+cases survive depends on whether each rewound revision's dependencies
+resolved, so the same command can score 85 cases one day and 77 the next.
+`lectio compare` checks that before showing any deltas, and refuses rather than
+printing numbers with a caveat attached.
 
 The index lives in `.lectio/index.db` inside the repo. Add `.lectio/` to your
 global gitignore.

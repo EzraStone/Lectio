@@ -39,6 +39,17 @@ read last. Precision and matched accuracy disagree completely — everything the
 first rewards, the second removes — because the first is measuring size and the
 second cannot.
 
+## The two corpora
+
+`corpus/gate-a.json` is the thirty repositories every number in the write-up
+was computed over. `corpus/gate-a-holdout.json` is thirty different ones,
+disjoint from it, and it exists for a single purpose: judging a hypothesis on
+cases that did not produce it.
+
+That property is spent by using it. Once a weighting has been tuned against the
+holdout, the holdout is measuring its own training set. See
+[CONTRIBUTING.md](../CONTRIBUTING.md) for the procedure.
+
 ## Elsewhere in the repository
 
 - [ARCHITECTURE.md](../ARCHITECTURE.md) — how the pieces fit, what is
