@@ -60,6 +60,9 @@ type CaseResult struct {
 	// SizeRatio records the pairing ratio this case was scored at, so the
 	// report can carry it without the caller passing it twice.
 	SizeRatio SizeRatio
+	// Ratios holds the same matched scores computed at several pairing ratios,
+	// when a sweep was asked for. Empty otherwise.
+	Ratios []RatioScore
 	// Variants records which variant set this case was scored under.
 	Variants VariantKind
 }
@@ -152,6 +155,10 @@ type RunOptions struct {
 	// MaxSizeRatio. Varying it is how the matched-pair findings are checked for
 	// dependence on a constant nobody derived.
 	SizeRatio SizeRatio
+	// SweepRatios asks for the matched column at several ratios in one pass.
+	// Empty means no sweep. Nearly free: the ranking does not depend on the
+	// ratio, so only the pairing is repeated.
+	SweepRatios []SizeRatio
 	// VariantKind names what Variants is, so a report can say which experiment
 	// it ran rather than inferring it from variant names. Empty means a plain
 	// run.
@@ -330,8 +337,10 @@ func RunCase(ctx context.Context, c Case, opts RunOptions) CaseResult {
 		pairs = nil
 	}
 
+	rankings := make(map[string][]string, len(strategies))
 	for _, s := range strategies {
 		predicted := s.RankFiles(v, p)
+		rankings[s.Name()] = predicted
 		matched, nPairs := ScoreMatchedPairs(predicted, pairs)
 		res.Scores = append(res.Scores, Score{
 			Strategy:  s.Name(),
@@ -347,6 +356,7 @@ func RunCase(ctx context.Context, c Case, opts RunOptions) CaseResult {
 			res.Strata = append(res.Strata, ss)
 		}
 	}
+	res.Ratios = scoreRatios(rankings, ground, sizes, opts.SweepRatios)
 
 	res.Elapsed = time.Since(start)
 	return res
@@ -491,6 +501,9 @@ type Report struct {
 	// at different ratios are two different measures, and a comparison across
 	// them would be meaningless without saying so.
 	SizeRatio SizeRatio `json:"size_ratio,omitzero"`
+	// Sweep is the matched column recomputed at several ratios, when one was
+	// asked for. It answers whether a finding depends on the pairing bound.
+	Sweep []RatioAggregate `json:"sweep,omitempty"`
 	// Strata holds mean precision per strategy within each file-size quartile.
 	Strata []StratumAggregate `json:"strata"`
 	// Collapse is the symbol-to-file rule the scored cases ran under, carried
@@ -660,6 +673,8 @@ func Summarize(results []CaseResult, k int) Report {
 			rep.MatchedPairs = n
 		}
 	}
+	rep.Sweep = summarizeRatios(results, order)
+
 	// Strategy order follows the main table; band order is smallest to
 	// largest, so a row reads left to right as size increases.
 	for _, name := range order {

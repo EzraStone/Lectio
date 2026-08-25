@@ -82,8 +82,10 @@ func scoreSymbolic(ctx context.Context, res *CaseResult, c Case, v *index.View, 
 		pairs = nil
 	}
 
+	rankings := make(map[string][]string, len(strategies))
 	for _, s := range strategies {
 		predicted := symbolIDs(s.RankSymbols(v, p))
+		rankings[s.Name()] = predicted
 		matched, nPairs := ScoreMatchedPairs(predicted, pairs)
 		res.Scores = append(res.Scores, Score{
 			Strategy:  s.Name(),
@@ -99,4 +101,5 @@ func scoreSymbolic(ctx context.Context, res *CaseResult, c Case, v *index.View, 
 			res.Strata = append(res.Strata, ss)
 		}
 	}
+	res.Ratios = scoreRatios(rankings, want, sizes, opts.SweepRatios)
 }
