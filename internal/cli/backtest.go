@@ -39,6 +39,8 @@ func runBacktest(ctx context.Context, env *Env, args []string) error {
 			"run the second backtest instead: does hidden coupling predict where newcomers go wrong?")
 		workers = fs.Int("workers", 1,
 			"cases to run at once; each one type-checks a whole repository, so raise this carefully")
+		candidates = fs.Bool("candidates", false,
+			"score the named candidate weightings instead of a leave-one-out ablation")
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -81,7 +83,14 @@ func runBacktest(ctx context.Context, env *Env, args []string) error {
 	if *offline {
 		runOpts.ModuleTimeout = -1
 	}
-	if *ablate {
+	switch {
+	case *candidates && *ablate:
+		return fmt.Errorf("--candidates and --ablate score different variant sets; pick one")
+	case *candidates:
+		// The hypotheses named in candidates.go, which were written down
+		// before the holdout corpus existed.
+		runOpts.Variants = backtest.Candidates()
+	case *ablate:
 		// Costs nothing extra: every variant scores against the same index.
 		runOpts.Variants = backtest.Ablations()
 	}
