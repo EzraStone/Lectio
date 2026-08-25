@@ -46,6 +46,27 @@ If a run disappoints and you want to adjust a threshold, that is exactly the
 moment not to. Write down the new rule, say why it is better on its own terms,
 and re-run everything under it.
 
+### The holdout corpus is spent by using it
+
+`corpus/gate-a-holdout.json` is thirty repositories that produced none of the
+hypotheses in this repository. It exists so a candidate weighting can be judged
+on cases that did not generate it.
+
+That property is destroyed the first time someone tunes against it. Once a
+weighting has been adjusted to score well on the holdout, the holdout is
+measuring its own training set and a third corpus is needed. Treat a run
+against it as an experiment you get to perform once per hypothesis:
+
+- Name the hypothesis first, in `Candidates()`, with the reasoning attached.
+- Run it.
+- Report what happened, including a candidate that lost.
+
+If a result is disappointing and the instinct is to try a sixth weighting, that
+sixth weighting is a new hypothesis and it needs a corpus the fifth did not
+touch. The cheap version of this discipline is `--cases`: a wider slice of
+gate-a is a bigger sample, not an independent one, and only the holdout is
+actually held out.
+
 ### The matched-pair calibrations are part of the result
 
 `TestSizeOnlyRankingScoresChance` and its three siblings are not test hygiene.
