@@ -24,6 +24,27 @@ One of the five hypotheses survived, and it was not a weighting:
   3.9 points clear of the full ranking. Churn-only, the surviving candidate,
   is +1.8 over lectio and behind three baselines.
 
+### The pairing bound was leaking, and the sweep caught it
+
+`--sweep-ratio` runs the matched column at every ratio in one pass. The first
+sweep answered a question run 8 had left open and found a bug in the interval
+code that had landed the same day.
+
+- **Largest-files walks 50.5% → 52.9% → 54.0% → 58.7%** as the bound loosens
+  from 1.10x to 2.00x. A size strategy converting a widening size gap into
+  accuracy is exactly what should happen, and it means every matched-pair
+  number computed at 1.25x is about two points generous to whatever correlates
+  with size.
+- **At 1.10x the history/size split is sharper, not weaker.** Four strategies
+  clear chance and all four are history-derived; both size strategies sit on
+  it. That is the one finding that has now survived a second corpus and a
+  change of instrument.
+- **`BootstrapInterval` refuses below eight repositories.** The exact-match
+  column reached four and reported a size strategy at 60.3% as clear of chance,
+  on pairs where it cannot know anything. A percentile bootstrap over four
+  clusters draws from 35 distinct resamples; the interval is arbitrary rather
+  than wide, and it can come out narrow.
+
 ### The error bars changed a conclusion
 
 With the intervals in place, both corpora were re-run.
