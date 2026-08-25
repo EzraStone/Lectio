@@ -113,13 +113,13 @@ func obsFrom(nRepos int, accuracies ...float64) []Observation {
 // The point estimate the bootstrap reports must be the number in the table,
 // not a resampled approximation of it.
 func TestBootstrapPointIsTheReportedMean(t *testing.T) {
-	obs := obsFrom(6, 0.4, 0.5, 0.6, 0.55, 0.45, 0.7, 0.3, 0.52)
+	obs := obsFrom(8, 0.4, 0.5, 0.6, 0.55, 0.45, 0.7, 0.3, 0.52)
 	iv := BootstrapInterval(obs, DefaultLevel, 500, 1)
 	closeTo(t, iv.Point, meanAccuracy(obs), 1e-12, "bootstrap point")
 }
 
 func TestBootstrapIsDeterministic(t *testing.T) {
-	obs := obsFrom(8, 0.4, 0.5, 0.6, 0.55, 0.45, 0.7, 0.3, 0.52, 0.61, 0.49)
+	obs := obsFrom(10, 0.4, 0.5, 0.6, 0.55, 0.45, 0.7, 0.3, 0.52, 0.61, 0.49)
 	a := BootstrapInterval(obs, DefaultLevel, 500, 7)
 	for i := 0; i < 5; i++ {
 		b := BootstrapInterval(obs, DefaultLevel, 500, 7)
@@ -152,31 +152,55 @@ func TestBootstrapWidensWithCoverage(t *testing.T) {
 // repository are not five independent observations, and an interval that
 // treats them as such is too narrow.
 //
-// The same twelve accuracies, once as twelve repositories and once as four.
-// The four-repository run has a third of the independent units and must report
-// a wider interval for it.
+// The same twenty-four accuracies, once as twenty-four repositories and once
+// as eight. Both clear MinClusters, so both produce real intervals; the
+// eight-repository run has a third of the independent units and must report a
+// wider one.
 func TestBootstrapIsWiderWhenCasesClusterInFewRepos(t *testing.T) {
-	acc := []float64{0.40, 0.42, 0.44, 0.60, 0.62, 0.64, 0.50, 0.52, 0.54, 0.70, 0.72, 0.74}
-	spread := BootstrapInterval(obsFrom(12, acc...), DefaultLevel, 2000, 5)
-	clumped := BootstrapInterval(obsFrom(4, acc...), DefaultLevel, 2000, 5)
+	var acc []float64
+	for i := 0; i < 24; i++ {
+		acc = append(acc, 0.40+0.02*float64(i%3)+0.10*float64(i/6))
+	}
+	spread := BootstrapInterval(obsFrom(24, acc...), DefaultLevel, 2000, 5)
+	clumped := BootstrapInterval(obsFrom(8, acc...), DefaultLevel, 2000, 5)
+
+	if spread.Width() >= 1 || clumped.Width() >= 1 {
+		t.Fatalf("one of these fell below MinClusters: widths %.3f and %.3f",
+			spread.Width(), clumped.Width())
+	}
 	if clumped.Width() <= spread.Width() {
-		t.Errorf("12 cases in 4 repos gave a %.4f-wide interval, not wider than %.4f across 12 repos",
+		t.Errorf("24 cases in 8 repos gave a %.4f-wide interval, not wider than %.4f across 24 repos",
 			clumped.Width(), spread.Width())
 	}
-	if clumped.Units != 4 || spread.Units != 12 {
-		t.Errorf("units are %d and %d, want 4 and 12 repositories", clumped.Units, spread.Units)
+	if clumped.Units != 8 || spread.Units != 24 {
+		t.Errorf("units are %d and %d, want 8 and 24 repositories", clumped.Units, spread.Units)
 	}
 }
 
-// One repository cannot support a claim about repositories, and the interval
-// says so rather than inventing a narrow one.
-func TestBootstrapOnASingleRepoClaimsNothing(t *testing.T) {
-	iv := BootstrapInterval(obsFrom(1, 0.5, 0.6, 0.7), DefaultLevel, 1000, 2)
-	if iv.Lo != 0 || iv.Hi != 1 {
-		t.Errorf("got [%.4f, %.4f] from one repository, want the whole scale", iv.Lo, iv.Hi)
+// A percentile bootstrap over four repositories has 35 distinct resamples. The
+// interval it produces is arbitrary, and it can come out narrow — which is how
+// a size strategy came to report 60.3% as clear of chance on 171 pairs where
+// it cannot know anything.
+func TestBootstrapClaimsNothingBelowMinClusters(t *testing.T) {
+	// oneCasePerRepo gives exactly one repository per accuracy, which is what
+	// lets the loop step the cluster count by one.
+	acc := []float64{0.62, 0.61, 0.60, 0.59, 0.63, 0.60, 0.61, 0.62}
+	for n := 1; n < MinClusters; n++ {
+		obs := oneCasePerRepo(acc[:n]...)
+		iv := BootstrapInterval(obs, DefaultLevel, 2000, 4)
+		if iv.Lo != 0 || iv.Hi != 1 {
+			t.Errorf("%d repositories gave [%.3f, %.3f], want the whole scale", n, iv.Lo, iv.Hi)
+		}
+		if iv.ExcludesChance() {
+			t.Errorf("%d repositories reported a result clear of chance", n)
+		}
+		if iv.Units != n {
+			t.Errorf("%d repositories reported %d units", n, iv.Units)
+		}
+		closeTo(t, iv.Point, meanAccuracy(obs), 1e-12, "the point estimate is still reported")
 	}
-	if iv.ExcludesChance() {
-		t.Error("an interval spanning the whole scale reported a result clear of chance")
+	if iv := BootstrapInterval(oneCasePerRepo(acc...), DefaultLevel, 2000, 4); iv.Width() >= 1 {
+		t.Errorf("exactly MinClusters repositories still claimed nothing: [%.3f, %.3f]", iv.Lo, iv.Hi)
 	}
 }
 
@@ -184,7 +208,7 @@ func TestBootstrapOnNothingIsEmpty(t *testing.T) {
 	if iv := BootstrapInterval(nil, DefaultLevel, 1000, 1); iv != (Interval{Level: DefaultLevel}) {
 		t.Errorf("got %+v from no observations", iv)
 	}
-	if iv := BootstrapInterval(obsFrom(2, 0.5), DefaultLevel, 0, 1); iv.Units != 0 {
+	if iv := BootstrapInterval(obsFrom(9, 0.5), DefaultLevel, 0, 1); iv.Units != 0 {
 		t.Errorf("got %+v from zero iterations", iv)
 	}
 }
