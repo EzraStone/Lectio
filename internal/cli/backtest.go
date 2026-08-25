@@ -325,6 +325,7 @@ func renderReport(env *Env, r backtest.Report) {
 			bootstrapClusters(r), backtest.MatchedChance*100), 72) {
 			env.out("%s", env.dim("  "+l))
 		}
+		renderConsistency(env, r)
 	}
 
 	env.out("")
@@ -585,4 +586,49 @@ func bootstrapClusters(r backtest.Report) int {
 		}
 	}
 	return n
+}
+
+// renderConsistency prints how many repositories each strategy beat chance in.
+//
+// Only for the rows where that changes the reading. A mean and an interval
+// together still cannot distinguish "a little better nearly everywhere" from
+// "enormously better in three repositories and level in the rest", and those
+// are different products: the first generalizes to the next repository and the
+// second is a description of three.
+func renderConsistency(env *Env, r backtest.Report) {
+	rows := make([]backtest.Aggregate, 0, len(r.Aggregates))
+	for _, a := range r.Aggregates {
+		if a.MatchedRepos.Repos() > 0 {
+			rows = append(rows, a)
+		}
+	}
+	if len(rows) == 0 {
+		return
+	}
+
+	env.out("")
+	env.out("  %-26s %10s %9s  %s", "strategy", "repos >50%", "sign p", "reading")
+	env.out("  %s", dashes(72))
+	for _, a := range rows {
+		c := a.MatchedRepos
+		reading := "a coin, repository by repository"
+		switch {
+		case !c.Lopsided():
+			// Left as the default. Most rows land here, which is the finding.
+		case c.Above > c.Below:
+			reading = env.good("above chance in most repositories")
+		default:
+			reading = env.bad("below chance in most repositories")
+		}
+		env.out("  %-26s %6d / %-3d %9.3f  %s",
+			a.Strategy, c.Above, c.Above+c.Below, c.P, reading)
+	}
+
+	for _, l := range wrap(
+		"repos >50%: how many repositories the strategy's own cases averaged above "+
+			"chance in, one vote each. sign p is two-sided and exact. A strategy "+
+			"picking up something general wins most repositories by a little; one "+
+			"carried by an outlier wins about half of them by a lot.", 72) {
+		env.out("%s", env.dim("  "+l))
+	}
 }

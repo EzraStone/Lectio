@@ -627,6 +627,8 @@ func Summarize(results []CaseResult, k int) Report {
 			// would be one more number nobody could check.
 			a.MatchedCI = BootstrapInterval(matchedObs[name], DefaultLevel, BootstrapIters, bootstrapSeed)
 			a.MatchedWilson = WilsonInterval(matchedWins[name], matchedPairs[name], DefaultLevel)
+			a.MatchedRepos = RepoConsistency(matchedObs[name])
+			a.MatchedByRepo = ByRepo(matchedObs[name])
 		}
 		rep.Aggregates = append(rep.Aggregates, a)
 		rep.Medians[name] = Median(precisions[name])
