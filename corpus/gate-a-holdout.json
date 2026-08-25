@@ -1,0 +1,185 @@
+{
+  "version": 1,
+  "repos": [
+    {
+      "name": "aws/smithy-go",
+      "url": "https://github.com/aws/smithy-go.git",
+      "rev": "0bcd162aa1363da3a301bbc84141ef5a61f34f63",
+      "note": "largely generated code — tests the generated-code exclusion"
+    },
+    {
+      "name": "cli/cli",
+      "url": "https://github.com/cli/cli.git",
+      "rev": "5d3c4817f1619213951dbf15031bad04acb88392",
+      "note": "large CLI application, professional team, high commit rate"
+    },
+    {
+      "name": "dgraph-io/badger",
+      "url": "https://github.com/dgraph-io/badger.git",
+      "rev": "679bf5b72c9e1788fe7454a28fb4e140221b6668",
+      "note": "storage engine; deep structural code"
+    },
+    {
+      "name": "dgrijalva/jwt-go",
+      "url": "https://github.com/dgrijalva/jwt-go.git",
+      "rev": "9742bd7fca1c67ba2eb793750f56ee3094d1b04f",
+      "note": "archived; history ends, which tests the rewind against a dead repo"
+    },
+    {
+      "name": "etcd-io/bbolt",
+      "url": "https://github.com/etcd-io/bbolt.git",
+      "rev": "1dedad84869b3a6fdbcff0fd614a45fb8fdf83fe",
+      "note": "B+tree store, small and dense"
+    },
+    {
+      "name": "go-playground/validator",
+      "url": "https://github.com/go-playground/validator.git",
+      "rev": "379edc84de2b611815bba450d91fb4be95b98c73",
+      "note": "reflection-heavy validation, stable API"
+    },
+    {
+      "name": "go-redis/redis",
+      "url": "https://github.com/go-redis/redis.git",
+      "rev": "18837034a1b96d331567d4fea23b303fd8bf2800",
+      "note": "large surface, steady contributor turnover"
+    },
+    {
+      "name": "go-yaml/yaml",
+      "url": "https://github.com/go-yaml/yaml.git",
+      "rev": "944c86a7d29391925ed6ac33bee98a0516f1287a",
+      "note": "YAML parsing; long history, small team, heavy test suite"
+    },
+    {
+      "name": "gofiber/fiber",
+      "url": "https://github.com/gofiber/fiber.git",
+      "rev": "c2f0fe0999230fa322483eecf0a1c1ff0f2e807e",
+      "note": "web framework with an unusually large contributor count"
+    },
+    {
+      "name": "golang-jwt/jwt",
+      "url": "https://github.com/golang-jwt/jwt.git",
+      "rev": "1a11d3724e63105d751decf9adbdc90165137b45",
+      "note": "security-sensitive, forked mid-life, many drive-by contributors"
+    },
+    {
+      "name": "googleapis/gax-go",
+      "url": "https://github.com/googleapis/gax-go.git",
+      "rev": "9b9173c6aa5a5b9f95154e6f1fa69595342253f6",
+      "note": "small support library under a large org"
+    },
+    {
+      "name": "goreleaser/goreleaser",
+      "url": "https://github.com/goreleaser/goreleaser.git",
+      "rev": "8afe0bbaf7b981e5f526fb93364856aae30a2236",
+      "note": "application with heavy plugin-style structure"
+    },
+    {
+      "name": "grpc-ecosystem/grpc-gateway",
+      "url": "https://github.com/grpc-ecosystem/grpc-gateway.git",
+      "rev": "dc0bbd5a019638ef6703bb1e802aff50cdd21c71",
+      "note": "codegen-heavy, plugin architecture"
+    },
+    {
+      "name": "hashicorp/consul-template",
+      "url": "https://github.com/hashicorp/consul-template.git",
+      "rev": "0be299adf35fd6a4117ba3eec437f8e8c547e06a",
+      "note": "application rather than library — different newcomer behaviour"
+    },
+    {
+      "name": "hashicorp/go-multierror",
+      "url": "https://github.com/hashicorp/go-multierror.git",
+      "rev": "6d4d48630db25c3c83fa83ecd41dd8438b82963c",
+      "note": "tiny and stable — a negative control, case selection should decline it"
+    },
+    {
+      "name": "hashicorp/golang-lru",
+      "url": "https://github.com/hashicorp/golang-lru.git",
+      "rev": "0d17caa4077d20e93b85215cf49d62e1a2c035be",
+      "note": "small cache library with a long tail of contributors"
+    },
+    {
+      "name": "json-iterator/go",
+      "url": "https://github.com/json-iterator/go.git",
+      "rev": "71ac16282d122fdd1e3a6d3e7f79b79b4cc3b50e",
+      "note": "performance-driven, dense reflection code"
+    },
+    {
+      "name": "junegunn/fzf",
+      "url": "https://github.com/junegunn/fzf.git",
+      "rev": "d46bfd005a8bb55b6e440da98470c23906982437",
+      "note": "application, single dominant author, long history"
+    },
+    {
+      "name": "lib/pq",
+      "url": "https://github.com/lib/pq.git",
+      "rev": "451ac10e4e854d3dd426b7b6ef6446850efbc34e",
+      "note": "database driver, protocol code, long-lived"
+    },
+    {
+      "name": "mattn/go-sqlite3",
+      "url": "https://github.com/mattn/go-sqlite3.git",
+      "rev": "58c8e145308ceded07d1df2ac1b65999499e7055",
+      "note": "cgo-heavy; a partial type-check is the expected case"
+    },
+    {
+      "name": "minio/minio-go",
+      "url": "https://github.com/minio/minio-go.git",
+      "rev": "b8b8f258ef46f2fcab5f8d6ad1f8e759fd8bbabc",
+      "note": "object storage client, wide API surface"
+    },
+    {
+      "name": "nats-io/nats.go",
+      "url": "https://github.com/nats-io/nats.go.git",
+      "rev": "850f889cf3d63bfd1a549ab9af59f0145146fb41",
+      "note": "messaging client, protocol-driven"
+    },
+    {
+      "name": "olekukonko/tablewriter",
+      "url": "https://github.com/olekukonko/tablewriter.git",
+      "rev": "303a1082bfa65cb570fcb88677c927fde5b8e706",
+      "note": "single-purpose formatting library, mostly one author"
+    },
+    {
+      "name": "pelletier/go-toml",
+      "url": "https://github.com/pelletier/go-toml.git",
+      "rev": "686c980c47581bf19b6119b60e9a59f2aed04170",
+      "note": "parser rewritten between major versions, so structure shifts under history"
+    },
+    {
+      "name": "prometheus/client_golang",
+      "url": "https://github.com/prometheus/client_golang.git",
+      "rev": "89c60c0554699c74fa3d4eec472b98a3108905e3",
+      "note": "instrumentation library with a big organizational contributor base"
+    },
+    {
+      "name": "robfig/cron",
+      "url": "https://github.com/robfig/cron.git",
+      "rev": "bc59245fe10efaed9d51b56900192527ed733435",
+      "note": "small, old, low churn — second negative control"
+    },
+    {
+      "name": "segmentio/kafka-go",
+      "url": "https://github.com/segmentio/kafka-go.git",
+      "rev": "2e0b3968aa51b16beb4e221876499a6ff816cd91",
+      "note": "protocol client with many contributors"
+    },
+    {
+      "name": "tidwall/gjson",
+      "url": "https://github.com/tidwall/gjson.git",
+      "rev": "7d8b3821e9d2acf35e8a226b63fcf801078e9b96",
+      "note": "one dominant author, very high churn"
+    },
+    {
+      "name": "uber-go/atomic",
+      "url": "https://github.com/uber-go/atomic.git",
+      "rev": "703f34c27411b863572156a97e9b659ff96e1d36",
+      "note": "tiny, generated wrappers — third negative control"
+    },
+    {
+      "name": "wailsapp/wails",
+      "url": "https://github.com/wailsapp/wails.git",
+      "rev": "97a418bd5e5793e224c25ee84f316f44af60b59a",
+      "note": "desktop framework, mixed Go and frontend"
+    }
+  ]
+}
