@@ -41,6 +41,8 @@ func runBacktest(ctx context.Context, env *Env, args []string) error {
 			"cases to run at once; each one type-checks a whole repository, so raise this carefully")
 		candidates = fs.Bool("candidates", false,
 			"score the named candidate weightings instead of a leave-one-out ablation")
+		sizeRatio = fs.Float64("size-ratio", float64(backtest.MaxSizeRatio),
+			"how unequal a size-matched pair may be; 1.0 admits only exact matches")
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -53,6 +55,11 @@ func runBacktest(ctx context.Context, env *Env, args []string) error {
 	targetVar, err := backtest.ParseTarget(*target)
 	if err != nil {
 		return err
+	}
+	// Below 1.0 nothing can ever pair, and a run that silently scored zero
+	// cases would look like a corpus problem rather than a flag problem.
+	if !backtest.SizeRatio(*sizeRatio).Valid() {
+		return fmt.Errorf("--size-ratio %.2f is below 1.0, at which no two sizes can match", *sizeRatio)
 	}
 
 	repos := fs.Args()
@@ -80,6 +87,7 @@ func runBacktest(ctx context.Context, env *Env, args []string) error {
 	runOpts.Collapse = collapseRule
 	runOpts.Target = targetVar
 	runOpts.Workers = *workers
+	runOpts.SizeRatio = backtest.SizeRatio(*sizeRatio)
 	if *offline {
 		runOpts.ModuleTimeout = -1
 	}
@@ -321,8 +329,9 @@ func renderReport(env *Env, r backtest.Report) {
 		for _, l := range wrap(fmt.Sprintf(
 			"±: half a 95%% interval, bootstrapped over the %d repositories that "+
 				"produced pairs rather than over the pairs themselves. Only rows whose "+
-				"interval clears %.0f%% are marked.",
-			bootstrapClusters(r), backtest.MatchedChance*100), 72) {
+				"interval clears %.0f%% are marked. Pairs matched within %.2fx on size.",
+			bootstrapClusters(r), backtest.MatchedChance*100,
+			r.SizeRatio.Or(backtest.MaxSizeRatio)), 72) {
 			env.out("%s", env.dim("  "+l))
 		}
 		renderConsistency(env, r)
