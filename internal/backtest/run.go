@@ -445,6 +445,15 @@ type Report struct {
 	// chosen target. Reported apart from Degraded because it says something
 	// about the question, not about the corpus or the run.
 	Unscorable int `json:"unscorable"`
+	// FailureReasons counts the remaining failures by cause.
+	//
+	// Everything not degraded and not unscorable used to land in Failed with no
+	// breakdown, which hid an entire run going wrong: a holdout run reported 73
+	// scored and 172 discarded, only 10 of them degraded, and the other 162
+	// were the machine running out of disk. The totals looked like a corpus
+	// with hard cases. A report that cannot say why it threw two thirds of its
+	// cases away is not reporting a measurement.
+	FailureReasons map[string]int `json:"failure_reasons,omitempty"`
 	// Target is what these cases were graded against.
 	Target Target `json:"target"`
 	// Variants records which variant set ran. An ablation and a candidate
@@ -541,11 +550,17 @@ func Summarize(results []CaseResult, k int) Report {
 				rep.Degraded++
 			}
 			var unscorable *UnscorableError
-			if errors.As(r.Err, &unscorable) {
+			switch {
+			case errors.As(r.Err, &unscorable):
 				rep.Unscorable++
 				if rep.Target == "" {
 					rep.Target = unscorable.Target
 				}
+			case degraded == nil:
+				if rep.FailureReasons == nil {
+					rep.FailureReasons = map[string]int{}
+				}
+				rep.FailureReasons[classifyFailure(r.Err)]++
 			}
 			continue
 		}
@@ -617,6 +632,54 @@ func Summarize(results []CaseResult, k int) Report {
 	}
 	rep.Verdict = decide(rep)
 	return rep
+}
+
+// classifyFailure buckets an error into something countable.
+//
+// Coarse on purpose. The point is not to name every failure but to make one
+// dominant cause visible in a summary, which is what was missing when a whole
+// run failed on disk space and reported it as 172 discarded cases.
+func classifyFailure(err error) string {
+	if err == nil {
+		return "unknown"
+	}
+	msg := err.Error()
+	switch {
+	case strings.Contains(msg, "no space left"), strings.Contains(msg, "ENOSPC"):
+		return "out of disk"
+	case strings.Contains(msg, "no type-checkable Go packages"):
+		return "nothing type-checkable at that revision"
+	case strings.Contains(msg, "worktree add"):
+		return "could not create a worktree"
+	case strings.Contains(msg, "context canceled"), strings.Contains(msg, "signal"):
+		return "cancelled"
+	case strings.Contains(msg, "no symbols found"):
+		return "no symbols at that revision"
+	default:
+		return "other"
+	}
+}
+
+// FailureReason is one cause and how often it happened.
+type FailureReason struct {
+	Reason string
+	Count  int
+}
+
+// SortedFailures orders reasons by frequency, then by name so a report
+// repeats.
+func SortedFailures(m map[string]int) []FailureReason {
+	out := make([]FailureReason, 0, len(m))
+	for reason, n := range m {
+		out = append(out, FailureReason{reason, n})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Count != out[j].Count {
+			return out[i].Count > out[j].Count
+		}
+		return out[i].Reason < out[j].Reason
+	})
+	return out
 }
 
 type stratumKey struct {

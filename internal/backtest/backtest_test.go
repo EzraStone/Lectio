@@ -3,6 +3,7 @@ package backtest
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -488,5 +489,80 @@ func TestReportCarriesItsSchemaVersion(t *testing.T) {
 		if _, ok := raw[gone]; ok {
 			t.Errorf("Go field name %q leaked into the JSON", gone)
 		}
+	}
+}
+
+// A holdout run reported 73 cases scored and 172 discarded, only 10 of them
+// degraded. The other 162 were the machine running out of disk, and the
+// summary said nothing — the totals read like a corpus with hard cases. A
+// report that cannot say why it threw two thirds of its cases away is not
+// reporting a measurement.
+func TestSummarizeBreaksDownFailuresByCause(t *testing.T) {
+	results := []CaseResult{
+		{Case: Case{Repo: "r", RewindTo: "a", Contributor: "x"},
+			Scores: []Score{{Strategy: "lectio", Precision: 0.4}}},
+		{Err: errors.New("index rewound tree: write index: no space left on device")},
+		{Err: errors.New("index rewound tree: write index: no space left on device")},
+		{Err: errors.New("index rewound tree: extract symbols: no type-checkable Go packages found in /tmp/x")},
+		{Err: &DegradedError{Health: IndexHealth{PackagesLoaded: 10, PackagesFailed: 9}}},
+	}
+	rep := Summarize(results, 10)
+
+	if rep.Failed != 4 {
+		t.Errorf("Failed = %d, want 4", rep.Failed)
+	}
+	if rep.Degraded != 1 {
+		t.Errorf("Degraded = %d, want 1", rep.Degraded)
+	}
+	if got := rep.FailureReasons["out of disk"]; got != 2 {
+		t.Errorf("out-of-disk count = %d, want 2: %v", got, rep.FailureReasons)
+	}
+	if got := rep.FailureReasons["nothing type-checkable at that revision"]; got != 1 {
+		t.Errorf("type-check count = %d, want 1: %v", got, rep.FailureReasons)
+	}
+	// A degraded case is already counted separately and must not be
+	// double-counted here.
+	total := 0
+	for _, n := range rep.FailureReasons {
+		total += n
+	}
+	if total != 3 {
+		t.Errorf("failure reasons total %d, want 3 — a degraded case was counted twice", total)
+	}
+}
+
+func TestClassifyFailure(t *testing.T) {
+	for _, tc := range []struct {
+		err  error
+		want string
+	}{
+		{errors.New("write index: no space left on device"), "out of disk"},
+		{errors.New("extract symbols: no type-checkable Go packages found"), "nothing type-checkable at that revision"},
+		{errors.New("git worktree add: fatal"), "could not create a worktree"},
+		{errors.New("context canceled"), "cancelled"},
+		{errors.New("something nobody anticipated"), "other"},
+		{nil, "unknown"},
+	} {
+		if got := classifyFailure(tc.err); got != tc.want {
+			t.Errorf("classifyFailure(%v) = %q, want %q", tc.err, got, tc.want)
+		}
+	}
+}
+
+// Reports repeat, so the ordering has to be total rather than dependent on map
+// iteration.
+func TestSortedFailuresIsDeterministic(t *testing.T) {
+	m := map[string]int{"a": 3, "b": 3, "c": 5, "d": 1}
+	first := SortedFailures(m)
+	for i := 0; i < 50; i++ {
+		got := SortedFailures(m)
+		for j := range got {
+			if got[j] != first[j] {
+				t.Fatalf("order moved: %+v then %+v", first, got)
+			}
+		}
+	}
+	if first[0].Reason != "c" || first[1].Reason != "a" || first[2].Reason != "b" {
+		t.Errorf("got %+v, want c, then a and b by name", first)
 	}
 }

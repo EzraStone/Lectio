@@ -229,6 +229,17 @@ func renderReport(env *Env, r backtest.Report) {
 		env.out("%s", env.warn(fmt.Sprintf(
 			"  %d had too little ground truth on the %s target to score", r.Unscorable, r.Target)))
 	}
+	// Everything else, by cause. A run that throws away most of its cases for
+	// one reason is reporting that reason, not a measurement — and without
+	// this the totals look like a corpus with hard cases.
+	for _, fr := range backtest.SortedFailures(r.FailureReasons) {
+		line := fmt.Sprintf("  %d %s", fr.Count, fr.Reason)
+		if fr.Reason == "out of disk" || fr.Count > r.Cases {
+			env.out("%s", env.bad(line+" — this run is not a measurement"))
+			continue
+		}
+		env.out("%s", env.warn(line))
+	}
 	if r.Target != "" && r.Target != backtest.DefaultTarget {
 		// Worth naming plainly: a precision@10 over declarations is not
 		// comparable with one over file paths, and a reader scanning two
