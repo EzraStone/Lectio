@@ -24,6 +24,30 @@ One of the five hypotheses survived, and it was not a weighting:
   3.9 points clear of the full ranking. Churn-only, the surviving candidate,
   is +1.8 over lectio and behind three baselines.
 
+### The error bars changed a conclusion
+
+With the intervals in place, both corpora were re-run.
+
+- **The orphaning result was never real.** +1.9 points on gate-a, not +3.0,
+  with intervals overlapping along almost their whole length; −0.1 on the
+  holdout. The holdout caught it because a second corpus was cheap to fetch.
+  The interval would have caught it without one.
+- **Exactly one row's interval clears chance**, and its repositories disagree.
+  Churn scores 55.9% with an interval of 50.4 – 61.1 and a sign test of 9 of 14
+  repositories at p = 0.42. The bootstrap weights a repository by how many
+  cases it produced; the sign test gives each one vote. When they disagree the
+  sign test is the reading to take.
+- **The margin is roughly ±5 points at file granularity, not ±2.** The old
+  figure was measured on precision and does not transfer: a matched-pair
+  accuracy averages over as few as five pairs per case, and the file-level
+  pairing reaches only about a third of the attempted cases.
+- **`--sweep-ratio`** runs the matched column at 1.0x, 1.1x, 1.25x, 1.5x and
+  2.0x in a single pass. Indexing is the expensive half and does not depend on
+  the ratio, so the whole ladder costs one run plus rounding.
+- **`Aggregate.Wins` is gone.** Nothing had ever written it, so every JSON
+  report published so far carried `"wins": 0` for every strategy — an absent
+  measurement that read as a real one.
+
 ### Numbers now carry their own error
 
 The "±2 points" every matched-pair conclusion was read against was chosen by
