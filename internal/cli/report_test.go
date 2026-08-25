@@ -235,3 +235,48 @@ func TestNoMatchedColumnWithoutPairs(t *testing.T) {
 		t.Errorf("a run with no pairs printed the matched caption:\n%s", got)
 	}
 }
+
+// A candidates run answers a different question from the gate, and the verdict
+// below the table still reads as the gate's. Without the header a reader could
+// take a candidate row for a baseline lectio must beat.
+func TestCandidatesRunSaysSo(t *testing.T) {
+	rep := fileReport()
+	rep.Variants = backtest.VariantsCandidates
+
+	env, out, _ := testEnv()
+	renderReport(env, rep)
+	got := plain(out.String())
+
+	if !strings.Contains(got, "candidate weightings") {
+		t.Errorf("a candidates run did not say so:\n%s", got)
+	}
+	if !strings.Contains(got, "four baselines still decide the gate") {
+		t.Errorf("the header does not say what still decides the gate:\n%s", got)
+	}
+}
+
+// An ordinary run must not carry the candidates header.
+func TestOrdinaryRunHasNoCandidatesHeader(t *testing.T) {
+	env, out, _ := testEnv()
+	renderReport(env, fileReport())
+	if got := plain(out.String()); strings.Contains(got, "candidate weightings") {
+		t.Errorf("a plain run claimed to compare candidates:\n%s", got)
+	}
+}
+
+// The contributions table belongs only to an ablation. A candidates run
+// rendered a one-row version of it, headed "what each signal is worth", for a
+// run that ablated nothing.
+func TestCandidatesRunRendersNoContributionsTable(t *testing.T) {
+	rep := fileReport()
+	rep.Variants = backtest.VariantsCandidates
+	rep.Aggregates = append(rep.Aggregates,
+		backtest.Aggregate{Strategy: "lectio −orphaning", PrecisionA: 0.44},
+		backtest.Aggregate{Strategy: "churn only", PrecisionA: 0.43})
+
+	env, out, _ := testEnv()
+	renderReport(env, rep)
+	if got := plain(out.String()); strings.Contains(got, "What each signal is worth") {
+		t.Errorf("a candidates run rendered an ablation table:\n%s", got)
+	}
+}
