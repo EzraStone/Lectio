@@ -5,6 +5,48 @@ are the questions the work was answering.
 
 ## Unreleased
 
+### The holdout, and the four hypotheses it killed
+
+Everything below this heading came from one corpus, and the run that found
+churn at 55.8% is the run that would have judged a churn-based ranking.
+`corpus/gate-a-holdout.json` is thirty repositories that produced none of it,
+pinned before anything ran against them. Five candidate weightings were named
+in `Candidates()` **before the holdout was fetched**.
+
+One of the five hypotheses survived, and it was not a weighting:
+
+- **The history/size split replicated.** Every history-derived strategy sits
+  above every size-derived one on both corpora, computed over repositories with
+  nothing in common.
+- **The orphaning result did not.** +3.0 points on gate-a, −0.1 on the holdout.
+  It was the sharpest thing in seven runs and it was one corpus.
+- **The best predictor is a baseline, not a signal.** Recency scores 59.2%,
+  3.9 points clear of the full ranking. Churn-only, the surviving candidate,
+  is +1.8 over lectio and behind three baselines.
+
+### Numbers now carry their own error
+
+The "±2 points" every matched-pair conclusion was read against was chosen by
+eye, and it is roughly right at 2,891 pairs and badly wrong at 426. Reports now
+compute the margin from the run:
+
+- **A cluster bootstrap over repositories.** Cases from one repository share a
+  file set and a history, so resampling cases would understate the error. The
+  interval resamples whole repositories, deterministically seeded so it
+  reproduces alongside the point estimate.
+- **A Wilson interval over pairs beside it**, as the optimistic bound. It is
+  always narrower and always wrong in the same direction; printing both makes
+  the difference visible instead of assumed.
+- **Colour follows the interval.** A row two points above chance used to be
+  marked as an effect. Now only rows whose interval clears 50% are.
+- **A sign test over repositories.** An interval cannot separate "a little
+  better nearly everywhere" from "enormously better in three repositories", and
+  the mean actively hides it. Reports count how many repositories each strategy
+  beat chance in, one vote each, with an exact two-sided p.
+- **`--size-ratio`.** The 1.25x pairing bound sat underneath every matched-pair
+  number and nobody derived it. It is now a run parameter, recorded on the
+  report, and `compare` refuses across two runs that used different ones.
+
 ### Gate A, seven runs, seven failures
 
 The go/no-go was run at scale and failed. The write-up is
