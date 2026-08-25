@@ -39,8 +39,25 @@ type Repo struct {
 
 // Manifest is the corpus definition.
 type Manifest struct {
-	Version int    `json:"version"`
-	Repos   []Repo `json:"repos"`
+	Version int `json:"version"`
+	// Name distinguishes one corpus from another in a report.
+	//
+	// There is more than one now, and a number computed over a holdout means
+	// something different from the same number over the corpus that produced
+	// the hypothesis. A report that cannot say which it ran against invites
+	// exactly the confusion the holdout exists to prevent.
+	Name string `json:"name,omitempty"`
+	// Note says why this corpus exists and what it is for.
+	Note  string `json:"note,omitempty"`
+	Repos []Repo `json:"repos"`
+}
+
+// Label names the corpus for a report, falling back to something usable.
+func (m *Manifest) Label() string {
+	if m.Name != "" {
+		return m.Name
+	}
+	return "unnamed corpus"
 }
 
 // CurrentVersion is bumped when the manifest shape changes.

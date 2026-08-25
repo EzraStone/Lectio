@@ -185,7 +185,13 @@ func corpusRepos(ctx context.Context, env *Env, manifestPath, cacheDir string) (
 		env.note("%s %d of %d corpus repositories are not fetched and will be skipped: %s",
 			env.warn("note:"), len(missing), len(m.Repos), strings.Join(missing, ", "))
 	}
-	env.note("%s %d repositories from %s", env.dim("corpus:"), len(paths), manifestPath)
+	env.note("%s %s — %d repositories from %s",
+		env.dim("corpus:"), m.Label(), len(paths), manifestPath)
+	if m.Note != "" {
+		for _, l := range wrap(m.Note, 68) {
+			env.note("%s", env.dim("  "+l))
+		}
+	}
 	return paths, nil
 }
 

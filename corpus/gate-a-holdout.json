@@ -1,11 +1,13 @@
 {
   "version": 1,
+  "name": "gate-a-holdout",
+  "note": "A second pinned corpus, disjoint from gate-a.json. It exists so a candidate weighting derived from gate-a can be judged on cases that did not produce it. Deliberately different in shape as well as membership: more applications, more generated code, more repositories with a single dominant author.",
   "repos": [
     {
       "name": "aws/smithy-go",
       "url": "https://github.com/aws/smithy-go.git",
       "rev": "0bcd162aa1363da3a301bbc84141ef5a61f34f63",
-      "note": "largely generated code — tests the generated-code exclusion"
+      "note": "largely generated code \u2014 tests the generated-code exclusion"
     },
     {
       "name": "cli/cli",
@@ -83,13 +85,13 @@
       "name": "hashicorp/consul-template",
       "url": "https://github.com/hashicorp/consul-template.git",
       "rev": "0be299adf35fd6a4117ba3eec437f8e8c547e06a",
-      "note": "application rather than library — different newcomer behaviour"
+      "note": "application rather than library \u2014 different newcomer behaviour"
     },
     {
       "name": "hashicorp/go-multierror",
       "url": "https://github.com/hashicorp/go-multierror.git",
       "rev": "6d4d48630db25c3c83fa83ecd41dd8438b82963c",
-      "note": "tiny and stable — a negative control, case selection should decline it"
+      "note": "tiny and stable \u2014 a negative control, case selection should decline it"
     },
     {
       "name": "hashicorp/golang-lru",
@@ -155,7 +157,7 @@
       "name": "robfig/cron",
       "url": "https://github.com/robfig/cron.git",
       "rev": "bc59245fe10efaed9d51b56900192527ed733435",
-      "note": "small, old, low churn — second negative control"
+      "note": "small, old, low churn \u2014 second negative control"
     },
     {
       "name": "segmentio/kafka-go",
@@ -173,7 +175,7 @@
       "name": "uber-go/atomic",
       "url": "https://github.com/uber-go/atomic.git",
       "rev": "703f34c27411b863572156a97e9b659ff96e1d36",
-      "note": "tiny, generated wrappers — third negative control"
+      "note": "tiny, generated wrappers \u2014 third negative control"
     },
     {
       "name": "wailsapp/wails",
