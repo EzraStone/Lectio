@@ -61,6 +61,15 @@ func Compare(a, b Report) Comparison {
 	case a.Collapse != b.Collapse && !a.Target.Symbolic():
 		c.Why = fmt.Sprintf("different collapse rules (%s vs %s), which is worth several points "+
 			"on its own", a.Collapse, b.Collapse)
+	case a.SizeRatio.Or(MaxSizeRatio) != b.SizeRatio.Or(MaxSizeRatio):
+		// Precision is unaffected by the pairing ratio, but the matched column
+		// is the reason this command exists, and a looser ratio admits more
+		// pairs while leaving more size information inside each one. Two runs
+		// at different ratios computed two different measures.
+		c.Why = fmt.Sprintf("different size-matching ratios (%.2fx vs %.2fx) — a looser ratio "+
+			"admits more pairs and leaves more size inside each one, so the matched columns "+
+			"are not the same measure",
+			a.SizeRatio.Or(MaxSizeRatio), b.SizeRatio.Or(MaxSizeRatio))
 	default:
 		c.Comparable = true
 	}
