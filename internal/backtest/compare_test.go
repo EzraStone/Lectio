@@ -155,3 +155,110 @@ func TestCompareRefusesAnEmptyRun(t *testing.T) {
 		t.Error("a run that scored nothing compared as legitimate")
 	}
 }
+
+// withCI attaches an interval to a strategy on a report, so a comparison has
+// something to overlap.
+func withCI(r Report, strategy string, point, lo, hi float64) Report {
+	out := r
+	out.Aggregates = append([]Aggregate(nil), r.Aggregates...)
+	for i := range out.Aggregates {
+		if out.Aggregates[i].Strategy != strategy {
+			continue
+		}
+		out.Aggregates[i].MatchedA = point
+		out.Aggregates[i].MatchedCI = Interval{Point: point, Lo: lo, Hi: hi, Level: 0.95, Units: 17}
+	}
+	return out
+}
+
+func ciBase() Report {
+	return Report{
+		CaseSet: "876c5a2edb25", Cases: 161, Target: TargetTouched, Collapse: CollapseMean,
+		Aggregates: []Aggregate{{Strategy: "lectio", PrecisionA: 0.336}},
+	}
+}
+
+// The mistake this flag exists to prevent, in its original numbers: +1.9
+// points between two intervals that overlap along almost their whole length.
+func TestOverlappingIntervalsAreNotADelta(t *testing.T) {
+	a := withCI(ciBase(), "lectio", 0.534, 0.483, 0.570)
+	b := withCI(ciBase(), "lectio", 0.553, 0.493, 0.597)
+
+	c := Compare(a, b)
+	if !c.Comparable {
+		t.Fatalf("the two runs did not compare: %s", c.Why)
+	}
+	row := c.Rows[0]
+	if !row.MatchedIntervals {
+		t.Fatal("both runs carry intervals and the row says otherwise")
+	}
+	if !row.MatchedOverlap {
+		t.Errorf("[48.3, 57.0] and [49.3, 59.7] were reported as disjoint")
+	}
+	if row.Decisive() {
+		t.Error("a +1.9 point delta inside both intervals was called decisive")
+	}
+	if got := row.MatchedDelta * 100; got < 1.8 || got > 2.0 {
+		t.Errorf("delta is %.1f points, want about +1.9 — the fixture has drifted", got)
+	}
+}
+
+func TestDisjointIntervalsAreADelta(t *testing.T) {
+	a := withCI(ciBase(), "lectio", 0.487, 0.443, 0.535)
+	b := withCI(ciBase(), "lectio", 0.612, 0.560, 0.664)
+
+	row := Compare(a, b).Rows[0]
+	if row.MatchedOverlap {
+		t.Error("[44.3, 53.5] and [56.0, 66.4] were reported as overlapping")
+	}
+	if !row.Decisive() {
+		t.Error("a delta clear of both intervals was not called decisive")
+	}
+}
+
+// Intervals that touch at exactly one point overlap. Calling that disjoint
+// would make the flag depend on the last decimal place of a bootstrap.
+func TestTouchingIntervalsOverlap(t *testing.T) {
+	a := withCI(ciBase(), "lectio", 0.50, 0.45, 0.55)
+	b := withCI(ciBase(), "lectio", 0.60, 0.55, 0.65)
+	if !Compare(a, b).Rows[0].MatchedOverlap {
+		t.Error("intervals sharing exactly their endpoint were reported as disjoint")
+	}
+}
+
+// A report written before the interval work has no intervals, and that is not
+// the same as intervals that overlap.
+func TestReportsWithoutIntervalsSaySo(t *testing.T) {
+	a := ciBase()
+	a.Aggregates[0].MatchedA = 0.534
+	b := withCI(ciBase(), "lectio", 0.553, 0.493, 0.597)
+
+	row := Compare(a, b).Rows[0]
+	if row.MatchedIntervals {
+		t.Error("a run with no intervals was treated as carrying them")
+	}
+	if row.Decisive() {
+		t.Error("a row with no intervals was called decisive")
+	}
+	if row.MatchedOverlap {
+		t.Error("a row with no intervals reported an overlap")
+	}
+}
+
+func TestIntervalsOverlapIsSymmetric(t *testing.T) {
+	for _, tc := range []struct {
+		a, b Interval
+		want bool
+	}{
+		{Interval{Lo: 0.4, Hi: 0.6}, Interval{Lo: 0.5, Hi: 0.7}, true},
+		{Interval{Lo: 0.4, Hi: 0.6}, Interval{Lo: 0.61, Hi: 0.7}, false},
+		{Interval{Lo: 0.4, Hi: 0.9}, Interval{Lo: 0.5, Hi: 0.6}, true}, // contained
+	} {
+		if got := intervalsOverlap(tc.a, tc.b); got != tc.want {
+			t.Errorf("overlap(%v, %v) = %v, want %v", tc.a, tc.b, got, tc.want)
+		}
+		if got := intervalsOverlap(tc.b, tc.a); got != tc.want {
+			t.Errorf("overlap is not symmetric for %v and %v", tc.a, tc.b)
+		}
+	}
+}
