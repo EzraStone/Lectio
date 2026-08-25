@@ -31,6 +31,24 @@ type ComparisonRow struct {
 	// moving from 52% to 48% has not merely got worse, it has changed what it
 	// claims — and that is invisible in a delta of four points.
 	SignFlip bool
+	// MatchedOverlap is true when the two runs' matched-pair intervals overlap,
+	// which means the delta beside them is not a finding.
+	//
+	// This project has already made that mistake once. Removing orphaning
+	// looked worth three points on one corpus and was worth −0.1 on another,
+	// and the three-point version was quoted for weeks because a delta printed
+	// beside no interval reads as a measurement. A row where the intervals
+	// overlap is a row where the second run has not shown the first was wrong.
+	MatchedOverlap bool
+	// MatchedIntervals is false when either run predates the interval work, so
+	// a reader can tell "the intervals overlap" from "there are no intervals".
+	MatchedIntervals bool
+}
+
+// Decisive reports whether a matched-pair delta is large enough, relative to
+// its own error, to be worth acting on.
+func (r ComparisonRow) Decisive() bool {
+	return r.MatchedIntervals && !r.MatchedOverlap
 }
 
 // Compare sets two reports side by side.
@@ -96,6 +114,10 @@ func Compare(a, b Report) Comparison {
 		if av.MatchedA > 0 && bv.MatchedA > 0 {
 			row.SignFlip = (av.MatchedA > MatchedChance) != (bv.MatchedA > MatchedChance)
 		}
+		if av.MatchedCI.Units > 0 && bv.MatchedCI.Units > 0 {
+			row.MatchedIntervals = true
+			row.MatchedOverlap = intervalsOverlap(av.MatchedCI, bv.MatchedCI)
+		}
 		c.Rows = append(c.Rows, row)
 	}
 	for name := range inB {
@@ -129,4 +151,14 @@ func abs(f float64) float64 {
 		return -f
 	}
 	return f
+}
+
+// intervalsOverlap reports whether two intervals share any value.
+//
+// Overlap is a conservative test and deliberately so. Two non-overlapping 95%
+// intervals are firm evidence of a difference; two that overlap are not proof
+// of no difference, only of insufficient evidence for one. Reading it the
+// stronger way would be the same error in the opposite direction.
+func intervalsOverlap(a, b Interval) bool {
+	return a.Lo <= b.Hi && b.Lo <= a.Hi
 }
