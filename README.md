@@ -330,6 +330,27 @@ two disagree the sign test is the conservative reading, because the bootstrap
 weights a repository by how many cases it produced and the sign test gives each
 one vote.
 
+A tenth run swept the one constant the whole measure rests on: how unequal a
+"size-matched" pair is allowed to be. Largest-files walks **50.5% → 52.9% →
+54.0% → 58.7%** as the bound loosens from 1.10x to 2.00x — a size strategy
+converting a widening size gap into accuracy, exactly as it should:
+
+| Strategy | 1.10x | 1.25x | 1.50x | 2.00x |
+| --- | --- | --- | --- | --- |
+| most recently modified | **58.6%** | **56.5%** | **56.7%** | **58.2%** |
+| churn only | **57.3%** | **57.8%** | **56.8%** | **58.9%** |
+| lectio | 51.8% | 54.0% | 54.1% | **56.3%** |
+| largest files | 50.5% | **52.9%** | **54.0%** | **58.7%** |
+| size-proportional draw | 48.5% | 47.3% | 48.3% | 51.0% |
+
+Bold marks an interval clear of chance. At **1.10x**, the tightest bound with
+usable coverage, four strategies clear chance and every one of them is
+history-derived; both size strategies sit on it and lectio does not clear it.
+That is the same split, measured where the pairing leaks least, and it comes
+out cleaner rather than weaker. At 2.00x nearly everything clears chance,
+which is the warning: a result that appears only at the loose end of the ladder
+is a result about the bound.
+
 Gate A is a hard stop and it has now been answered eight ways. Nothing below it
 should be built on this ranking. The likely reading is not that the ranking is
 behind but that the question is wrong: among declarations of equal size,
