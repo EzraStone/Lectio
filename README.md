@@ -313,9 +313,22 @@ a newcomer touches is simply which one was edited last — 3.9 points clear of
 the full ranking, on a corpus that had no hand in producing the hypothesis.
 
 The orphaning result is the cautionary one. It was the sharpest thing in seven
-runs on the first corpus and it is −0.1 points on the second. That is what a
-holdout is for, and it is why the ranking was never tuned against these
-numbers.
+runs on the first corpus and it is −0.1 points on the second.
+
+A ninth run then put error bars on the first corpus, and they explain it: the
+effect is +1.9 points there with a 95% interval of 49.3 – 59.7 against lectio's
+48.3 – 57.0. It was never three points. It was a three-point *sample*, read
+against a ±2 margin that had been chosen by eye and was less than half the
+width it should have been. The holdout caught it because thirty more
+repositories were cheap; the interval would have caught it without them.
+
+Every matched-pair figure now carries a bootstrap interval over repositories
+and a sign test counting how many repositories the strategy beat chance in.
+On the first corpus exactly one row's interval clears chance — churn, at
+50.4 – 61.1 — and its sign test is 9 of 14 repositories, p = 0.42. When the
+two disagree the sign test is the conservative reading, because the bootstrap
+weights a repository by how many cases it produced and the sign test gives each
+one vote.
 
 Gate A is a hard stop and it has now been answered eight ways. Nothing below it
 should be built on this ranking. The likely reading is not that the ranking is
