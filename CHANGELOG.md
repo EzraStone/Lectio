@@ -94,6 +94,9 @@ compute the margin from the run:
 
 ### Gate A, seven runs, seven failures
 
+*(Runs 8 through 10, above, added a second corpus and error bars. The "±2
+points" in this section is the eyeballed figure they replaced.)*
+
 The go/no-go was run at scale and failed. The write-up is
 [docs/gate-a-2026-08.md](docs/gate-a-2026-08.md); the short version is that
 once file size is held constant the ranking is indistinguishable from sorting
