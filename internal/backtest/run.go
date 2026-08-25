@@ -57,6 +57,8 @@ type CaseResult struct {
 	// GroundSymbols is the attributed answer set for a symbolic target. Empty
 	// for file targets, where the ground truth is on the Case itself.
 	GroundSymbols []core.SymbolID
+	// Variants records which variant set this case was scored under.
+	Variants VariantKind
 }
 
 // UnscorableError marks a case skipped because it has too little ground truth
@@ -143,6 +145,10 @@ type RunOptions struct {
 	// Variants scores several weightings against the same index. Empty means
 	// the single default weighting.
 	Variants []Variant
+	// VariantKind names what Variants is, so a report can say which experiment
+	// it ran rather than inferring it from variant names. Empty means a plain
+	// run.
+	VariantKind VariantKind
 	// Collapse is how symbol scores become file scores for every lectio
 	// variant. Empty means DefaultCollapse.
 	Collapse Collapse
@@ -220,7 +226,9 @@ func RunCase(ctx context.Context, c Case, opts RunOptions) CaseResult {
 	if opts.Target == "" {
 		opts.Target = DefaultTarget
 	}
-	res := CaseResult{Case: c, Collapse: opts.Collapse, Target: opts.Target}
+	res := CaseResult{
+		Case: c, Collapse: opts.Collapse, Target: opts.Target, Variants: opts.VariantKind,
+	}
 
 	// Checked before the expensive part. Rewinding and indexing a revision to
 	// score it against an empty ground truth costs minutes and produces a zero
@@ -438,7 +446,11 @@ type Report struct {
 	// about the question, not about the corpus or the run.
 	Unscorable int `json:"unscorable"`
 	// Target is what these cases were graded against.
-	Target     Target      `json:"target"`
+	Target Target `json:"target"`
+	// Variants records which variant set ran. An ablation and a candidate
+	// comparison answer different questions and their rows must not be read
+	// as alternatives to each other.
+	Variants   VariantKind `json:"variants,omitempty"`
 	K          int         `json:"k"`
 	Aggregates []Aggregate `json:"aggregates"`
 	// Medians is the median precision per strategy, keyed by name.
@@ -541,6 +553,7 @@ func Summarize(results []CaseResult, k int) Report {
 		if rep.Collapse == "" {
 			rep.Collapse = r.Collapse
 			rep.Target = r.Target
+			rep.Variants = r.Variants
 		}
 		for _, s := range r.Scores {
 			if _, seen := precisions[s.Strategy]; !seen {

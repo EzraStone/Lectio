@@ -22,6 +22,21 @@ type Variant struct {
 // report and compared against.
 const DefaultVariant = "lectio"
 
+// VariantKind names which experiment a run performed.
+//
+// Recorded rather than inferred. The two sets overlap by name — a candidate is
+// called "lectio −orphaning" and so is an ablation row — and guessing from
+// names produced an ablation table for a run that ablated nothing.
+type VariantKind string
+
+const (
+	// VariantsAblation is the leave-one-out set: what is each signal worth
+	// inside the current weighting?
+	VariantsAblation VariantKind = "ablation"
+	// VariantsCandidates is the named hypotheses: which weighting to keep?
+	VariantsCandidates VariantKind = "candidates"
+)
+
 // Variants returns the single default weighting.
 func Variants() []Variant {
 	return []Variant{{Name: DefaultVariant, Weights: rank.DefaultWeights()}}
@@ -77,9 +92,16 @@ type Contribution struct {
 
 // Contributions reads an ablation report back into per-signal effects.
 //
-// Returns nil when the report holds no ablation variants, so a caller can tell
-// "this was a plain run" from "every signal measured zero".
+// Returns nil when the report was not an ablation run, which the report states
+// rather than this function guessing from variant names. The candidate
+// weightings include one called "lectio −orphaning" — indistinguishable from
+// an ablation row by name alone, and reading it as one produced a table headed
+// "what each signal is worth" for a run that ablated nothing.
 func Contributions(rep Report) []Contribution {
+	if rep.Variants != "" && rep.Variants != VariantsAblation {
+		return nil
+	}
+
 	scores := make(map[string]float64, len(rep.Aggregates))
 	matched := make(map[string]float64, len(rep.Aggregates))
 	for _, a := range rep.Aggregates {

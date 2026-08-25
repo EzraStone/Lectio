@@ -90,9 +90,11 @@ func runBacktest(ctx context.Context, env *Env, args []string) error {
 		// The hypotheses named in candidates.go, which were written down
 		// before the holdout corpus existed.
 		runOpts.Variants = backtest.Candidates()
+		runOpts.VariantKind = backtest.VariantsCandidates
 	case *ablate:
 		// Costs nothing extra: every variant scores against the same index.
 		runOpts.Variants = backtest.Ablations()
+		runOpts.VariantKind = backtest.VariantsAblation
 	}
 
 	git := vcs.NewGit()

@@ -185,3 +185,59 @@ func TestVerdictStillFailsAgainstBaselinesDuringAblation(t *testing.T) {
 		t.Errorf("lost = %v, want just the churn baseline", v.Lost)
 	}
 }
+
+// A candidates run includes one variant named "lectio −orphaning", which looks
+// exactly like an ablation row. Reading it as one produced a table headed
+// "what each signal is worth" for a run that ablated nothing — six signals
+// missing, one present, and no way for a reader to tell.
+//
+// The report says which experiment ran rather than leaving this to be guessed
+// from names, which is what the guess got wrong.
+func TestContributionsRejectsACandidatesRun(t *testing.T) {
+	rep := Report{
+		Cases:    20,
+		Variants: VariantsCandidates,
+		Aggregates: []Aggregate{
+			{Strategy: DefaultVariant, PrecisionA: 0.40},
+			{Strategy: "lectio −orphaning", PrecisionA: 0.42},
+			{Strategy: "churn only", PrecisionA: 0.38},
+		},
+	}
+	if got := Contributions(rep); got != nil {
+		t.Errorf("a candidates run produced %d contributions: %+v", len(got), got)
+	}
+}
+
+// A run labelled as an ablation still reads as one.
+func TestContributionsAcceptsALabelledAblation(t *testing.T) {
+	rep := Report{Cases: 20, Variants: VariantsAblation,
+		Aggregates: []Aggregate{{Strategy: DefaultVariant, PrecisionA: 0.40}}}
+	for _, v := range Ablations() {
+		if v.Name == DefaultVariant {
+			continue
+		}
+		rep.Aggregates = append(rep.Aggregates, Aggregate{Strategy: v.Name, PrecisionA: 0.39})
+	}
+
+	got := Contributions(rep)
+	if len(got) == 0 {
+		t.Fatal("a labelled ablation produced no contributions")
+	}
+	for _, c := range got {
+		if c.Delta < 0.009 || c.Delta > 0.011 {
+			t.Errorf("%s delta = %v, want ~0.01", c.Signal, c.Delta)
+		}
+	}
+}
+
+// An unlabelled report is the old shape, from before the kind was recorded.
+// It has to keep working, or every stored report becomes unreadable.
+func TestContributionsStillReadsAnUnlabelledReport(t *testing.T) {
+	rep := Report{Aggregates: []Aggregate{
+		{Strategy: DefaultVariant, PrecisionA: 0.40},
+		{Strategy: "lectio −churn", PrecisionA: 0.46},
+	}}
+	if got := Contributions(rep); len(got) != 1 {
+		t.Errorf("got %+v, want one contribution", got)
+	}
+}
