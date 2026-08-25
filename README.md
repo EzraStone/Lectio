@@ -333,7 +333,19 @@ make gate-a            # the gate, with per-signal ablation
 make gate-a-corrected  # the same, graded against what newcomers had to fix
 make coupling          # the differentiator, measured directly
 make gate-a-symbols    # graded in declarations rather than file paths
+make corpus-holdout    # the second corpus, disjoint from the first
+make holdout           # the named candidates, on repositories that did not produce them
 ```
+
+Two reports from the same case set can be diffed:
+
+```sh
+lectio compare before.json after.json
+```
+
+It refuses when the runs are not comparable — different case sets, targets,
+collapse rules or size-matching ratios — rather than printing deltas between
+two different populations, because the deltas are the part people quote.
 
 The corpus is [`corpus/gate-a.json`](corpus/gate-a.json): thirty Go
 repositories pinned to specific commits, each with a note on why it is there —
