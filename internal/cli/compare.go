@@ -85,7 +85,7 @@ func renderComparison(env *Env, c backtest.Comparison, aPath, bPath string) {
 		return
 	}
 
-	env.out("  %-26s %10s %10s %9s %9s", "strategy", "prec before", "after", "Δ", "Δ matched")
+	env.out("  %-26s %10s %10s %9s %9s %s", "strategy", "prec before", "after", "Δ", "Δ matched", "")
 	env.out("  %s", dashes(70))
 	for _, row := range c.Rows {
 		label := fmt.Sprintf("%-26s", row.Strategy)
@@ -101,8 +101,21 @@ func renderComparison(env *Env, c backtest.Comparison, aPath, bPath string) {
 			// Crossing chance is a change of claim, not a change of degree.
 			matched = env.bad(matched)
 		}
-		env.out("  %s %9.1f%% %9.1f%% %s %s",
-			label, row.PrecisionA*100, row.PrecisionB*100, delta, matched)
+		// A delta printed beside no interval reads as a measurement. This
+		// project quoted a three-point ablation delta for weeks that turned out
+		// to be −0.1 on a second corpus, so a row whose intervals overlap says
+		// so on the row rather than in a footnote.
+		note := ""
+		switch {
+		case !row.MatchedIntervals && (row.MatchedA > 0 || row.MatchedB > 0):
+			note = env.dim("no intervals")
+		case row.MatchedOverlap:
+			note = env.dim("intervals overlap")
+		case row.MatchedIntervals:
+			note = env.good("clear")
+		}
+		env.out("  %s %9.1f%% %9.1f%% %s %s %s",
+			label, row.PrecisionA*100, row.PrecisionB*100, delta, matched, note)
 	}
 
 	for _, only := range []struct {
@@ -114,10 +127,26 @@ func renderComparison(env *Env, c backtest.Comparison, aPath, bPath string) {
 		}
 	}
 
-	var flips int
+	var flips, decisive, overlapping int
 	for _, row := range c.Rows {
 		if row.SignFlip {
 			flips++
+		}
+		switch {
+		case row.Decisive():
+			decisive++
+		case row.MatchedIntervals:
+			overlapping++
+		}
+	}
+	if overlapping > 0 {
+		env.out("")
+		for _, l := range wrap(fmt.Sprintf(
+			"%d of %d matched-pair deltas sit inside the two runs' own intervals, and %d "+
+				"are clear of them. An overlapping delta is not evidence that nothing "+
+				"changed — it is the absence of evidence that anything did.",
+			overlapping, overlapping+decisive, decisive), 70) {
+			env.out("%s", env.dim("  "+l))
 		}
 	}
 	if flips > 0 {
