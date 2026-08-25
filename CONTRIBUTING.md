@@ -67,6 +67,21 @@ touch. The cheap version of this discipline is `--cases`: a wider slice of
 gate-a is a bigger sample, not an independent one, and only the holdout is
 actually held out.
 
+### Check why cases were discarded before reading the table
+
+A backtest run reports how many cases it scored and how many it threw away.
+The second number is not a footnote. A holdout run once reported 73 scored and
+172 discarded, and the strategy table under it looked like a result — the
+discards were the machine running out of disk.
+
+`go mod download all` runs per case, and a corpus of thirty large repositories
+at a dozen cases each will pull tens of gigabytes into the module cache. If a
+run starts failing in bulk, check `df` before checking the code. `go clean
+-modcache` recovers it.
+
+The report now buckets failures by cause and marks a dominant one as "this run
+is not a measurement". Believe it.
+
 ### The matched-pair calibrations are part of the result
 
 `TestSizeOnlyRankingScoresChance` and its three siblings are not test hygiene.
