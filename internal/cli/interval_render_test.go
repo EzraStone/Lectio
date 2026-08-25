@@ -141,3 +141,72 @@ func TestBootstrapClustersTakesTheLargest(t *testing.T) {
 		t.Errorf("bootstrapClusters on a run with no intervals = %d, want 0", got)
 	}
 }
+
+// consistencyReport gives three strategies the three readings the table can
+// print: broad, concentrated, and consistently below chance.
+func consistencyReport() backtest.Report {
+	r := matchedReport()
+	r.Aggregates[0].MatchedRepos = backtest.Consistency{Above: 20, Below: 4, P: 0.0015439}
+	r.Aggregates[1].MatchedRepos = backtest.Consistency{Above: 13, Below: 11, P: 0.8388}
+	r.Aggregates[2].MatchedRepos = backtest.Consistency{Above: 12, Below: 12, P: 1}
+	r.Aggregates[3].MatchedRepos = backtest.Consistency{Above: 4, Below: 20, P: 0.0015439}
+	return r
+}
+
+func TestConsistencyTableCountsRepositories(t *testing.T) {
+	env, out, _ := testEnv()
+	renderReport(env, consistencyReport())
+	got := plain(out.String())
+
+	for _, want := range []string{"repos >50%", "sign p", "20 / 24", "13 / 24", "4 / 24"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("consistency table is missing %q:\n%s", want, got)
+		}
+	}
+}
+
+// The three readings have to differ, or the column is decoration.
+func TestConsistencyReadingsSeparateBroadFromConcentrated(t *testing.T) {
+	env, out, _ := testEnv()
+	renderReport(env, consistencyReport())
+
+	want := map[string]string{
+		"most recently modified": "above chance in most repositories",
+		"churn only":             "a coin, repository by repository",
+		"lectio":                 "a coin, repository by repository",
+		"size-proportional draw": "below chance in most repositories",
+	}
+	for _, line := range strings.Split(plain(out.String()), "\n") {
+		trimmed := strings.TrimSpace(line)
+		for name, reading := range want {
+			// Only the consistency table has a sign p, which is what
+			// distinguishes these rows from the main table's.
+			if !strings.HasPrefix(trimmed, name) || !strings.Contains(trimmed, "/") {
+				continue
+			}
+			if !strings.Contains(trimmed, reading) {
+				t.Errorf("%s reads %q, want %q", name, trimmed, reading)
+			}
+		}
+	}
+}
+
+// A 13/24 split is a coin. Reporting it as an effect because 13 is more than
+// half is the mistake the p-value is there to prevent.
+func TestANarrowMajorityIsNotAReading(t *testing.T) {
+	c := backtest.Consistency{Above: 13, Below: 11, P: 0.8388}
+	if c.Lopsided() {
+		t.Errorf("13 of 24 read as lopsided at p=%.4f", c.P)
+	}
+	if got := c.Share(); got <= 0.5 {
+		t.Errorf("Share() = %.3f, want the majority it is not a reading of", got)
+	}
+}
+
+func TestConsistencyTableIsAbsentWithoutRepositories(t *testing.T) {
+	env, out, _ := testEnv()
+	renderReport(env, matchedReport())
+	if got := plain(out.String()); strings.Contains(got, "sign p") {
+		t.Errorf("a run with no repository counts printed the consistency table:\n%s", got)
+	}
+}
