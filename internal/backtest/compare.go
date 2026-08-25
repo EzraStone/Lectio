@@ -1,0 +1,123 @@
+package backtest
+
+import (
+	"fmt"
+	"sort"
+)
+
+// Comparison is one report set beside another.
+type Comparison struct {
+	// Comparable is false when the two runs measured different populations,
+	// which makes every delta below meaningless.
+	Comparable bool
+	// Why explains an incomparable pair in words.
+	Why string
+	// Rows are per-strategy deltas, ordered by the size of the change.
+	Rows []ComparisonRow
+	// OnlyInA and OnlyInB name strategies present in one run and not the
+	// other.
+	OnlyInA []string
+	OnlyInB []string
+}
+
+// ComparisonRow is one strategy's before and after.
+type ComparisonRow struct {
+	Strategy string
+	// Precision and Matched are the two headline measures. Delta fields are
+	// B minus A, so a positive number means the second run scored higher.
+	PrecisionA, PrecisionB, PrecisionDelta float64
+	MatchedA, MatchedB, MatchedDelta       float64
+	// SignFlip marks a matched-pair result that crossed chance. A strategy
+	// moving from 52% to 48% has not merely got worse, it has changed what it
+	// claims — and that is invisible in a delta of four points.
+	SignFlip bool
+}
+
+// Compare sets two reports side by side.
+//
+// The first thing it decides is whether the comparison is legitimate at all.
+// Which cases survive a run depends on whether each rewound revision's
+// dependencies resolved, so the same command can measure 85 cases one day and
+// 77 the next — and a delta between two different populations is not a
+// measurement of anything. Two runs are comparable when their case sets match.
+//
+// Reporting the deltas anyway, with a warning, would be worse than refusing:
+// the numbers are the part people quote.
+func Compare(a, b Report) Comparison {
+	var c Comparison
+
+	switch {
+	case a.CaseSet == "" || b.CaseSet == "":
+		c.Why = "one of the runs scored no cases"
+	case a.CaseSet != b.CaseSet:
+		c.Why = fmt.Sprintf(
+			"different case sets (%s vs %s) — %d cases against %d. Which cases survive "+
+				"depends on whether each revision's dependencies resolved, so these two runs "+
+				"measured different populations and the deltas would not mean anything",
+			a.CaseSet, b.CaseSet, a.Cases, b.Cases)
+	case a.Target != b.Target:
+		c.Why = fmt.Sprintf("different targets (%s vs %s) — precision over declarations is "+
+			"not comparable with precision over file paths", a.Target, b.Target)
+	case a.Collapse != b.Collapse && !a.Target.Symbolic():
+		c.Why = fmt.Sprintf("different collapse rules (%s vs %s), which is worth several points "+
+			"on its own", a.Collapse, b.Collapse)
+	default:
+		c.Comparable = true
+	}
+
+	inA := byStrategy(a)
+	inB := byStrategy(b)
+
+	for name, av := range inA {
+		bv, ok := inB[name]
+		if !ok {
+			c.OnlyInA = append(c.OnlyInA, name)
+			continue
+		}
+		row := ComparisonRow{
+			Strategy:       name,
+			PrecisionA:     av.PrecisionA,
+			PrecisionB:     bv.PrecisionA,
+			PrecisionDelta: bv.PrecisionA - av.PrecisionA,
+			MatchedA:       av.MatchedA,
+			MatchedB:       bv.MatchedA,
+			MatchedDelta:   bv.MatchedA - av.MatchedA,
+		}
+		// Only meaningful when both runs actually measured it.
+		if av.MatchedA > 0 && bv.MatchedA > 0 {
+			row.SignFlip = (av.MatchedA > MatchedChance) != (bv.MatchedA > MatchedChance)
+		}
+		c.Rows = append(c.Rows, row)
+	}
+	for name := range inB {
+		if _, ok := inA[name]; !ok {
+			c.OnlyInB = append(c.OnlyInB, name)
+		}
+	}
+
+	sort.Strings(c.OnlyInA)
+	sort.Strings(c.OnlyInB)
+	sort.Slice(c.Rows, func(i, j int) bool {
+		ai, aj := abs(c.Rows[i].PrecisionDelta), abs(c.Rows[j].PrecisionDelta)
+		if ai != aj {
+			return ai > aj
+		}
+		return c.Rows[i].Strategy < c.Rows[j].Strategy
+	})
+	return c
+}
+
+func byStrategy(r Report) map[string]Aggregate {
+	out := make(map[string]Aggregate, len(r.Aggregates))
+	for _, a := range r.Aggregates {
+		out[a.Strategy] = a
+	}
+	return out
+}
+
+func abs(f float64) float64 {
+	if f < 0 {
+		return -f
+	}
+	return f
+}
