@@ -241,7 +241,7 @@ and loses to three baselines instead of one.
 through precision@10: lift 1.02 across 2,311 newcomer corrective commits. The
 signal finds 1,554 real pairs; corrective work does not concentrate on them.
 
-The weights are unchanged from before all four runs, and should stay that way.
+The weights are unchanged from before all ten runs, and should stay that way.
 Every strategy that beat lectio beat it by being more size-correlated, so
 fitting to this metric produces a tool that recommends big files — the failure
 it exists to prevent.
