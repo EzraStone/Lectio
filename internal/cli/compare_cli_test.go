@@ -113,3 +113,97 @@ func TestCompareCallsOutCrossingChance(t *testing.T) {
 		t.Errorf("crossing chance was not called out:\n%s", flat)
 	}
 }
+
+// ciReport builds a comparable report whose lectio row carries an interval.
+func ciReport(caseSet string, precision, matched, lo, hi float64) backtest.Report {
+	return backtest.Report{
+		Schema: 1, Cases: 161, K: 10,
+		Target: backtest.TargetTouched, Collapse: backtest.CollapseMean,
+		CaseSet: caseSet,
+		Aggregates: []backtest.Aggregate{{
+			Strategy: "lectio", PrecisionA: precision, MatchedA: matched,
+			MatchedCI: backtest.Interval{Point: matched, Lo: lo, Hi: hi, Level: 0.95, Units: 17},
+		}},
+		Medians: map[string]float64{},
+	}
+}
+
+func TestCompareMarksOverlappingRows(t *testing.T) {
+	env, out, _ := testEnv()
+	renderComparison(env, backtest.Compare(
+		ciReport("abc", 0.336, 0.534, 0.483, 0.570),
+		ciReport("abc", 0.339, 0.553, 0.493, 0.597),
+	), "before.json", "after.json")
+	// The row, not the whole report: the summary footnote also uses the word
+	// "clear", counting how many deltas were.
+	row := comparisonRow(t, out.String(), "lectio")
+	if !strings.Contains(row, "intervals overlap") {
+		t.Errorf("an overlapping row is not marked:\n%s", row)
+	}
+	if strings.Contains(row, "clear") {
+		t.Errorf("an overlapping row was marked clear:\n%s", row)
+	}
+}
+
+// comparisonRow returns the strategy's line from the delta table.
+func comparisonRow(t *testing.T, out, strategy string) string {
+	t.Helper()
+	for _, line := range strings.Split(plain(out), "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), strategy) && strings.Contains(line, "%") {
+			return line
+		}
+	}
+	t.Fatalf("no comparison row for %q in:\n%s", strategy, plain(out))
+	return ""
+}
+
+func TestCompareMarksClearRows(t *testing.T) {
+	env, out, _ := testEnv()
+	renderComparison(env, backtest.Compare(
+		ciReport("abc", 0.336, 0.487, 0.443, 0.535),
+		ciReport("abc", 0.339, 0.612, 0.560, 0.664),
+	), "before.json", "after.json")
+	row := comparisonRow(t, out.String(), "lectio")
+	if !strings.Contains(row, "clear") {
+		t.Errorf("a row clear of both intervals is not marked:\n%s", row)
+	}
+	if strings.Contains(row, "intervals overlap") {
+		t.Errorf("a disjoint row was marked as overlapping:\n%s", row)
+	}
+}
+
+// "The intervals overlap" and "there are no intervals" are different states
+// and must not print the same thing.
+func TestCompareDistinguishesAbsentIntervals(t *testing.T) {
+	before := ciReport("abc", 0.336, 0.534, 0, 0)
+	before.Aggregates[0].MatchedCI = backtest.Interval{}
+
+	env, out, _ := testEnv()
+	renderComparison(env, backtest.Compare(before, ciReport("abc", 0.339, 0.553, 0.493, 0.597)),
+		"before.json", "after.json")
+	row := comparisonRow(t, out.String(), "lectio")
+	if !strings.Contains(row, "no intervals") {
+		t.Errorf("a run predating the interval work is not marked:\n%s", row)
+	}
+	if strings.Contains(row, "intervals overlap") {
+		t.Errorf("an absent interval was reported as an overlap:\n%s", row)
+	}
+}
+
+func TestCompareSummarizesHowManyDeltasSurvive(t *testing.T) {
+	env, out, _ := testEnv()
+	renderComparison(env, backtest.Compare(
+		ciReport("abc", 0.336, 0.534, 0.483, 0.570),
+		ciReport("abc", 0.339, 0.553, 0.493, 0.597),
+	), "before.json", "after.json")
+	got := strings.Join(strings.Fields(plain(out.String())), " ")
+
+	for _, want := range []string{
+		"1 of 1 matched-pair deltas sit inside the two runs' own intervals",
+		"it is the absence of evidence that anything did",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("summary is missing %q:\n%s", want, got)
+		}
+	}
+}
