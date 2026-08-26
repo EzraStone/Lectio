@@ -3,7 +3,9 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/EzraStone/Lectio/internal/backtest"
@@ -55,6 +57,9 @@ func runBacktest(ctx context.Context, env *Env, args []string) error {
 	// Checked before anything else resolves a corpus or a repository: a replay
 	// reads a file and touches nothing else.
 	if *replay != "" {
+		if err := replayRejects(fs); err != nil {
+			return err
+		}
 		return runReplay(env, *replay, *asJSON)
 	}
 
@@ -819,4 +824,33 @@ func runReplay(env *Env, path string, asJSON bool) error {
 	env.note("%s %s", env.dim("replaying:"), path)
 	renderReport(env, replayed)
 	return nil
+}
+
+// replayOnlyFlags are the flags that survive a replay: they change how a
+// stored report is presented, not how it was measured.
+var replayOnlyFlags = map[string]bool{"replay": true, "json": true}
+
+// replayRejects refuses a replay combined with a flag that could only have
+// applied to a fresh run.
+//
+// Silently ignoring them is the worse option by some distance. Every one of
+// these describes something the stored report already committed to — the
+// corpus it ran against, the target it graded, the ratio it paired at — and a
+// reader who passed --size-ratio 1.1 alongside --replay would reasonably
+// believe they were seeing the table at 1.1x. They would be seeing it at
+// whatever the run used.
+func replayRejects(fs *flag.FlagSet) error {
+	var ignored []string
+	fs.Visit(func(f *flag.Flag) {
+		if !replayOnlyFlags[f.Name] {
+			ignored = append(ignored, "-"+f.Name)
+		}
+	})
+	if len(ignored) == 0 {
+		return nil
+	}
+	sort.Strings(ignored)
+	return fmt.Errorf("--replay re-renders a stored report and cannot change how it was "+
+		"measured, so %s would be ignored — drop them, or re-run the corpus",
+		strings.Join(ignored, ", "))
 }
