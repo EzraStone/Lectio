@@ -85,6 +85,20 @@ func renderComparison(env *Env, c backtest.Comparison, aPath, bPath string) {
 		return
 	}
 
+	// An intersected comparison is a different object from a direct one and
+	// has to say so above the table, not below it. The numbers in the rows are
+	// not the numbers in either report.
+	if c.Intersected {
+		for _, l := range wrap(fmt.Sprintf(
+			"These runs scored different case sets, so every number below was recomputed "+
+				"over the %d cases both reached — dropping %d from the first run and %d from "+
+				"the second. They will not match the totals in either file.",
+			c.SharedCases, c.DroppedFromA, c.DroppedFromB), 70) {
+			env.out("%s", env.warn("  "+l))
+		}
+		env.out("")
+	}
+
 	env.out("  %-26s %10s %10s %9s %9s %s", "strategy", "prec before", "after", "Δ", "Δ matched", "")
 	env.out("  %s", dashes(70))
 	for _, row := range c.Rows {
