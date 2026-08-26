@@ -247,9 +247,19 @@ choices than a size heuristic, it is making the *same* ones.
 had to fix or revert rather than the ones they touched, lectio drops to 28.5%
 and loses to three baselines instead of one.
 
-**And the differentiator is null.** Hidden coupling, tested directly rather than
-through precision@10: lift 1.02 across 2,311 newcomer corrective commits. The
-signal finds 1,554 real pairs; corrective work does not concentrate on them.
+**And the differentiator is null — tightly.** Hidden coupling, tested directly
+rather than through precision@10: **lift 1.02, 95% interval 0.98 to 1.07**,
+bootstrapped over 24 repositories, across 2,311 newcomer corrective commits.
+The signal finds 1,552 real pairs; corrective work does not concentrate on them.
+
+The interval is the part that took ten runs to add, and it changes what the
+number says. *No relationship* and *not enough evidence to see one* produce the
+same 1.02. A lift of 1.07 or more would have landed outside this interval, so
+the result is not "we could not find an effect" — it is **no effect above seven
+percent**. It is the one place in this project where adding an error bar
+strengthened a finding instead of dissolving it, and the reason is sample size:
+this measure pools thousands of commits where the matched-pair measure reaches
+seventeen repositories.
 
 The weights are unchanged from before all ten runs, and should stay that way.
 Every strategy that beat lectio beat it by being more size-correlated, so

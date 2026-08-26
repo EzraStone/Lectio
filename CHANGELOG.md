@@ -24,6 +24,27 @@ One of the five hypotheses survived, and it was not a weighting:
   3.9 points clear of the full ranking. Churn-only, the surviving candidate,
   is +1.8 over lectio and behind three baselines.
 
+### The differentiator's null has an error bar, and it is tight
+
+"Lift 1.02, no relationship" was the most-quoted number in this project and the
+only one that never carried one. *No relationship* and *not enough evidence to
+see one* produce the same 1.02, so for ten runs this was a refutation resting on
+a number that could equally have been a shrug.
+
+- **Lift 1.02, 95% interval 0.98 to 1.07**, bootstrapped over the 24
+  repositories that cleared both sample-size guards. A lift of 1.07 or more
+  would have landed outside it, so the result is *no effect above seven
+  percent* rather than *no effect we could see*.
+- **`CouplingPower`** answers the question a null result has to and almost
+  never does: what is the smallest departure from no-relationship this corpus
+  could have detected? Printed whenever the interval contains 1.0.
+- **Colour follows the interval.** A pooled lift of 1.6 on an interval running
+  down to 0.8 is not a positive result, and this project has already made that
+  mistake three times in a different table.
+- A zero-width interval is an answer, not a refusal: a corpus whose
+  repositories all agree has no between-repository variance, and that is the
+  tightest result a run can produce.
+
 ### The one lead closed, and the correction that would have flagged it
 
 Churn-only won 12 of 15 repositories on the holdout at p = 0.035 — the first
