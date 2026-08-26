@@ -341,6 +341,7 @@ func renderReport(env *Env, r backtest.Report) {
 		}
 		renderConsistency(env, r)
 		renderSweep(env, r)
+		renderLeak(env, r)
 	}
 
 	env.out("")
@@ -716,5 +717,32 @@ func renderSweep(env *Env, r backtest.Report) {
 			"column is the cleanest and the thinnest. A result that only appears at "+
 			"the loose end is a result about the pairing bound.", 72) {
 		env.out("%s", env.dim("  "+l))
+	}
+}
+
+// renderLeak warns when the run's own size controls beat chance.
+//
+// Printed after the tables rather than before them, because it is a statement
+// about how to read what is above it. Printed in warning colour because a
+// leaking pairing does not invalidate the run — precision is unaffected, and
+// the ordering usually survives — it inflates every size-correlated row by a
+// couple of points, which is enough to turn a null into a finding.
+func renderLeak(env *Env, r backtest.Report) {
+	warning := backtest.PairingLeak(r)
+	if warning == "" {
+		return
+	}
+	env.out("")
+	for _, l := range wrap(warning, 72) {
+		env.out("%s", env.warn("  "+l))
+	}
+	// A sweep can do better than warn: it can name a bound that works.
+	if ratio, ok := backtest.SweepLeak(r); ok && ratio < r.SizeRatio.Or(backtest.MaxSizeRatio) {
+		for _, l := range wrap(fmt.Sprintf(
+			"The sweep above is clean at %.2fx, which is the loosest bound in this ladder "+
+				"that holds size out. Re-run with --size-ratio %.2f to read the table there.",
+			ratio, ratio), 72) {
+			env.out("%s", env.dim("  "+l))
+		}
 	}
 }
