@@ -24,6 +24,32 @@ One of the five hypotheses survived, and it was not a weighting:
   3.9 points clear of the full ranking. Churn-only, the surviving candidate,
   is +1.8 over lectio and behind three baselines.
 
+### The one lead closed, and the correction that would have flagged it
+
+Churn-only won 12 of 15 repositories on the holdout at p = 0.035 — the first
+sign test in the project under 0.05. Taken back to the first corpus it is
+**9 of 15, p = 0.607.**
+
+- **Reports correct for having run ten tests.** Holm–Bonferroni across every
+  strategy a report scores, since a table of ten produces about one nominal
+  0.05 by construction. Holm rather than Bonferroni: uniformly more powerful,
+  and neither assumes independence, which matters because these strategies are
+  scored on identical cases.
+- **The nominal-only row is marked, not promoted and not hidden.** A row that
+  clears 0.05 on its own p and not after correction is the one a reader would
+  otherwise quote, and it has now twice been the one that failed.
+- **A replay recomputes the correction**, so reports written before it existed
+  get it on being re-read. The family follows the restriction: a strategy
+  absent from a subset is one fewer test.
+- **Run 10's claim is corrected.** "Four strategies clear chance at the tight
+  end, and that is the split surviving a second corpus" conflated a direction
+  with a significance. The direction replicates on both corpora at every bound;
+  the four rows clearing a threshold do not — gate-a has none at 1.10x.
+- **The file-level measure has a structural ceiling.** Seventeen repositories
+  produce pairs at five cases per repository and seventeen at twelve. More
+  cases add pairs to repositories already counted, and both the bootstrap and
+  the sign test resample repositories.
+
 ### What the re-render found
 
 Run 10's report replayed through the current analysis, no corpus touched.

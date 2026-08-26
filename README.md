@@ -387,11 +387,26 @@ numbers move with a constant nobody derived and with a case set that changes
 between runs. The declaration-level numbers move with neither: three runs, one
 case-set fingerprint, and a ratio ladder that changes nothing.
 
-**One strategy has ever cleared the repository sign test**, in thirteen runs
-across two corpora: churn-only, 12 of 15 repositories at p = 0.035. It is also
-one of ten strategies scored on the same data, where roughly one nominal 0.05
-is expected by construction, and it does not clear a threshold corrected for
-that. It is not evidence. It is where a next experiment would point.
+**One strategy ever cleared the repository sign test** — churn-only, 12 of 15
+repositories on the holdout at p = 0.035. It was also one of ten strategies
+scored on the same data, where roughly one nominal 0.05 is expected by
+construction. The next run took it back to the first corpus and it came back
+**9 of 15, p = 0.607**. A coin.
+
+That is the shape of every candidate finding here:
+
+| Claimed | Where it was found | On the other corpus |
+| --- | --- | --- |
+| removing orphaning is worth +3.0 pp | gate-a | −0.1 pp |
+| churn-only wins 12 of 15 repositories | holdout, p = 0.035 | 9 of 15, p = 0.607 |
+| four strategies clear chance at 1.10x | holdout | none clear |
+| history ranks above size | both | **both** |
+
+One direction survives; no magnitude and no significance does. Reports now
+apply a Holm–Bonferroni correction across the strategies they score and mark
+the row that clears 0.05 on its own p and not after it — because that row is
+the one a reader would otherwise quote, and it has twice been the one that
+failed.
 
 Gate A is a hard stop and it has now been answered eight ways. Nothing below it
 should be built on this ranking. The likely reading is not that the ranking is
