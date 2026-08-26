@@ -300,3 +300,131 @@ func TestRestrictingAWiderRunReproducesTheNarrowerOne(t *testing.T) {
 		}
 	}
 }
+
+// A replay is only useful if it reproduces the run. Everything derivable from
+// the per-case scores has to come back identical, and everything not derivable
+// has to be carried rather than dropped.
+func TestReplayReproducesTheReport(t *testing.T) {
+	ids := caseIDs("c", 12, 60)
+	full := perCaseReport("aaa", ids, 0.53)
+	// Recompute the aggregates the way a run would, so the fixture is a report
+	// a replay should be a fixed point of.
+	all := map[string]bool{}
+	for _, id := range ids {
+		all[id] = true
+	}
+	full = RestrictTo(full, all)
+	full.Schema = ReportSchema
+	full.Failed, full.Degraded, full.Unscorable = 41, 12, 3
+	full.FailureReasons = map[string]int{"nothing type-checkable at that revision": 37}
+	full.Coverage = MatchedCoverage{Scored: 60, Unpairable: 4, Ground: 900, Paired: 600}
+	full.Strata = []StratumAggregate{{Strategy: "lectio", Stratum: 0, Precision: 0.245, Spread: 23}}
+	full.Sweep = []RatioAggregate{{Ratio: 1.1, Strategy: "lectio", Matched: 0.518, Cases: 36, Pairs: 696}}
+
+	got, err := Replay(full)
+	if err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+
+	if got.CaseSet != full.CaseSet || got.Cases != full.Cases {
+		t.Errorf("replay changed the population: %s/%d vs %s/%d",
+			got.CaseSet, got.Cases, full.CaseSet, full.Cases)
+	}
+	if len(got.Aggregates) != len(full.Aggregates) {
+		t.Fatalf("got %d aggregates, want %d", len(got.Aggregates), len(full.Aggregates))
+	}
+	for i, a := range got.Aggregates {
+		w := full.Aggregates[i]
+		if a.Strategy != w.Strategy {
+			t.Errorf("aggregate %d is %s, want %s — the table reordered", i, a.Strategy, w.Strategy)
+		}
+		if a.PrecisionA != w.PrecisionA || a.MatchedA != w.MatchedA || a.MatchedCI != w.MatchedCI {
+			t.Errorf("%s changed through a replay: %+v vs %+v", a.Strategy, a, w)
+		}
+	}
+	// Carried, not recomputed: a replay covers exactly the cases the run did.
+	if got.Failed != 41 || got.Degraded != 12 || got.Coverage.Scored != 60 {
+		t.Errorf("a replay dropped the run's failure and coverage counts: %+v", got)
+	}
+	if len(got.Strata) != 1 || len(got.Sweep) != 1 {
+		t.Errorf("a replay dropped strata (%d) or sweep (%d)", len(got.Strata), len(got.Sweep))
+	}
+}
+
+// Recall and MRR were left out of CaseScore at first. A report replayed
+// without them prints two columns of zeroes that look like measurements.
+func TestReplayKeepsRecallAndMRR(t *testing.T) {
+	ids := caseIDs("c", 10, 40)
+	r := perCaseReport("aaa", ids, 0.53)
+	for i := range r.PerCase {
+		r.PerCase[i].Recall = 0.29
+		r.PerCase[i].MRR = 0.647
+	}
+	// Through RestrictTo first, so the fixture carries a real fingerprint —
+	// "aaa" is not one, and Replay is right to refuse it.
+	all := map[string]bool{}
+	for _, id := range ids {
+		all[id] = true
+	}
+	r = RestrictTo(r, all)
+
+	got, err := Replay(r)
+	if err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	for _, a := range got.Aggregates {
+		closeTo(t, a.RecallA, 0.29, 1e-9, a.Strategy+" recall")
+		closeTo(t, a.MRR, 0.647, 1e-9, a.Strategy+" MRR")
+	}
+}
+
+func TestReplayRefusesAReportWithoutPerCaseScores(t *testing.T) {
+	r := perCaseReport("aaa", caseIDs("c", 4, 10), 0.53)
+	r.PerCase = nil
+	if _, err := Replay(r); err == nil {
+		t.Error("a report with no per-case scores replayed without complaint")
+	} else if !strings.Contains(err.Error(), "no per-case scores") {
+		t.Errorf("the error does not say what is missing: %v", err)
+	}
+}
+
+// A file whose per-case scores disagree with its header has been edited, and
+// silently trusting either half would be worse than failing.
+func TestReplayCatchesAnAlteredFile(t *testing.T) {
+	r := perCaseReport("aaa", caseIDs("c", 10, 40), 0.53)
+	all := map[string]bool{}
+	for _, id := range CaseIDs(r) {
+		all[id] = true
+	}
+	r = RestrictTo(r, all)
+	r.CaseSet = "deadbeef1234"
+
+	if _, err := Replay(r); err == nil {
+		t.Error("a report whose header disagrees with its scores replayed cleanly")
+	} else if !strings.Contains(err.Error(), "altered since it was written") {
+		t.Errorf("the error does not name the problem: %v", err)
+	}
+}
+
+// A strategy in the per-case scores that the aggregates never named is a
+// broken file, but dropping it silently is worse than showing it last.
+func TestRestrictKeepsAnUnlistedStrategy(t *testing.T) {
+	ids := caseIDs("c", 10, 40)
+	r := perCaseReport("aaa", ids, 0.53)
+	r.Aggregates = []Aggregate{{Strategy: "lectio"}}
+	all := map[string]bool{}
+	for _, id := range ids {
+		all[id] = true
+	}
+	got := RestrictTo(r, all)
+
+	if len(got.Aggregates) != 2 {
+		t.Fatalf("got %d aggregates, want lectio plus the unlisted one", len(got.Aggregates))
+	}
+	if got.Aggregates[0].Strategy != "lectio" {
+		t.Errorf("the listed strategy is not first: %s", got.Aggregates[0].Strategy)
+	}
+	if got.Aggregates[1].Strategy != "largest files" {
+		t.Errorf("the unlisted strategy is %s, want largest files", got.Aggregates[1].Strategy)
+	}
+}
