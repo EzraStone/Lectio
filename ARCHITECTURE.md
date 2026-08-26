@@ -375,6 +375,75 @@ chance; an oracle must score ~100%. The first three catch a leak, the fourth
 catches a measure with no power. If one of them starts failing, the column is
 meaningless until it passes again — the numbers will still look plausible.
 
+The calibrations run on a synthetic corpus where the answer is known. They
+cannot say whether the pairing holds on a *real* one, and it did not: at 1.25x
+a strategy that reads nothing but file length scored 52.9% with an interval
+clear of chance. `PairingLeak` now asks that of every run — a size-only
+strategy beating chance means the two candidates were not the same size enough
+— and `SweepLeak` names the loosest bound in a ratio sweep that holds size out.
+
+### How wide the pairing may be
+
+`MaxSizeRatio` bounds how unequal a matched pair can be, and it trades two
+things against each other in opposite directions. Loosening it admits more
+pairs, which narrows every interval, and leaves more size inside each pair,
+which is the thing the measure exists to remove.
+
+The default is 1.25x. Whether that is the right number turns out to depend
+entirely on granularity, and `--sweep-ratio` is how that was found: it walks
+the whole ladder in one run, since indexing a rewound revision is minutes and
+does not depend on the ratio while re-pairing an in-memory size table is
+microseconds.
+
+- **Files are sparse in size space.** A repository has tens of them, so the
+  nearest file by size can be half again as large. Tightening from 2.00x to
+  1.00x drops 81% of the pairs, and a size strategy walks from 58.7% down to
+  chance across the ladder. The bound is doing all the work.
+- **Declarations are dense.** A repository has thousands, so for almost any
+  declaration there is another within a percent of the same length. The same
+  tightening drops 18% of the pairs and moves no strategy by more than a point.
+
+So the two granularities do not deserve equal confidence, and a file-level
+matched number should never be quoted without the ratio beside it.
+
+### How much error a number carries
+
+Every matched-pair figure was read for nine runs against a margin of "±2
+points" that had been chosen by eye. It is about right at 2,891 pairs and about
+half what it should be at 426, which is where it was actually being applied.
+
+Reports now compute it two ways. `WilsonInterval` treats every pair as
+independent and is the optimistic bound. `BootstrapInterval` resamples whole
+*repositories*, because cases from one repository share a file set and a
+history — and it refuses below eight of them, since a percentile bootstrap over
+four clusters draws from 35 distinct resamples and can come out narrow.
+
+Neither can separate "a little better nearly everywhere" from "enormously
+better in three repositories", and a mean actively hides the difference.
+`RepoConsistency` counts repositories instead, one vote each, with an exact
+two-sided sign test. When it and the interval disagree, the sign test is the
+conservative reading: the bootstrap weights a repository by how many cases it
+produced.
+
+### Comparing two runs
+
+Which cases survive a run depends on whether each rewound revision's
+dependencies resolved, so two runs of the same command can measure different
+populations — and a delta across two populations is not a measurement.
+`Compare` refused outright, which was correct and useless: the file targets
+have produced a different case set on nearly every repeat.
+
+Reports therefore carry per-case numbers, and `Compare` rebuilds both runs over
+the cases they share, saying so above the table since its rows then match
+neither input file. `RestrictTo` recomputes everything derivable from the
+per-case scores and **drops** what is not — strata, sweeps, verdicts. A verdict
+computed over 161 cases carried onto a 74-case subset would look exactly like a
+real claim about those 74.
+
+The drift is not uniform. The declaration targets have produced fingerprint
+`0d1e81666c55` on every run that used them; the file targets have never
+repeated one.
+
 ### Size-stratified precision
 
 The overall table cannot tell "chose better files" from "chose bigger files".
