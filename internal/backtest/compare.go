@@ -28,6 +28,15 @@ type Comparison struct {
 	SharedCases  int `json:"shared_cases,omitempty"`
 	DroppedFromA int `json:"dropped_from_a,omitempty"`
 	DroppedFromB int `json:"dropped_from_b,omitempty"`
+	// Nested marks the case where one run's cases are entirely contained in
+	// the other's. That is a materially different situation from two runs
+	// overlapping: nothing was measured in one and not the other, so the
+	// comparison is about sample size rather than about population.
+	//
+	// It is also the shape `--cases 5` against `--cases 12` produces, which is
+	// the comparison this project keeps making and kept describing as "a larger
+	// sample rather than an independent one" without being able to check.
+	Nested bool `json:"nested,omitempty"`
 	// CasesOnlyInA and CasesOnlyInB name the cases each run reached alone.
 	// Populated only when asked for: on a drifting corpus the lists can be
 	// longer than the rest of the comparison put together, and the counts
@@ -98,7 +107,7 @@ func Compare(a, b Report) Comparison {
 	// runs the same command has never twice produced the same case set.
 	var intersection struct {
 		shared, onlyA, onlyB int
-		applied              bool
+		applied, nested      bool
 	}
 	if a.CaseSet != "" && b.CaseSet != "" && a.CaseSet != b.CaseSet {
 		shared, onlyA, onlyB := SharedCases(a, b)
@@ -110,6 +119,7 @@ func Compare(a, b Report) Comparison {
 			a, b = RestrictTo(a, keep), RestrictTo(b, keep)
 			intersection.shared, intersection.onlyA, intersection.onlyB = len(shared), onlyA, onlyB
 			intersection.applied = true
+			intersection.nested = onlyA == 0 || onlyB == 0
 		}
 	}
 
@@ -134,6 +144,7 @@ func Compare(a, b Report) Comparison {
 		c.SharedCases = intersection.shared
 		c.DroppedFromA = intersection.onlyA
 		c.DroppedFromB = intersection.onlyB
+		c.Nested = intersection.nested
 	}
 
 	return withRows(c, a, b)
