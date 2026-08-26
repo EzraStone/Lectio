@@ -387,6 +387,8 @@ make coupling          # the differentiator, measured directly
 make gate-a-symbols    # graded in declarations rather than file paths
 make corpus-holdout    # the second corpus, disjoint from the first
 make holdout           # the named candidates, on repositories that did not produce them
+make sweep             # the matched column at every pairing ratio
+make sweep-symbols     # the same ladder in declarations, where it moves nothing
 ```
 
 Two reports can be diffed:
