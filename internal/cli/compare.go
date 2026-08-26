@@ -97,11 +97,27 @@ func renderComparison(env *Env, c backtest.Comparison, aPath, bPath string) {
 	// has to say so above the table, not below it. The numbers in the rows are
 	// not the numbers in either report.
 	if c.Intersected {
-		for _, l := range wrap(fmt.Sprintf(
+		note := fmt.Sprintf(
 			"These runs scored different case sets, so every number below was recomputed "+
 				"over the %d cases both reached — dropping %d from the first run and %d from "+
 				"the second. They will not match the totals in either file.",
-			c.SharedCases, c.DroppedFromA, c.DroppedFromB), 70) {
+			c.SharedCases, c.DroppedFromA, c.DroppedFromB)
+		if c.Nested {
+			// Worth saying plainly. Nothing was measured in one run and not the
+			// other, so this is a comparison of sample sizes rather than of two
+			// populations, and the usual warning overstates the problem.
+			wider, narrower := "second", "first"
+			if c.DroppedFromB == 0 {
+				wider, narrower = "first", "second"
+			}
+			note = fmt.Sprintf(
+				"One run's cases are entirely contained in the other's: every case the %s run "+
+					"scored, the %s run scored too. Nothing was measured in one and not the "+
+					"other, so this compares sample sizes rather than populations. The %d "+
+					"numbers below are recomputed over the %d shared cases.",
+				narrower, wider, len(c.Rows), c.SharedCases)
+		}
+		for _, l := range wrap(note, 70) {
 			env.out("%s", env.warn("  "+l))
 		}
 		env.out("")
