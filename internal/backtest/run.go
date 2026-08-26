@@ -63,6 +63,12 @@ type CaseResult struct {
 	// Ratios holds the same matched scores computed at several pairing ratios,
 	// when a sweep was asked for. Empty otherwise.
 	Ratios []RatioScore
+	// GroundSize and BuiltPairs record what the pairing was offered and what it
+	// managed, before the MinPairs floor. Carried per case so the report can
+	// say which of the two limits is binding rather than only how many cases
+	// survived.
+	GroundSize int
+	BuiltPairs int
 	// Variants records which variant set this case was scored under.
 	Variants VariantKind
 }
@@ -333,6 +339,7 @@ func RunCase(ctx context.Context, c Case, opts RunOptions) CaseResult {
 	// largest-files won, and the pairing is what says whether that win was
 	// about size.
 	pairs := BuildMatchedPairsAt(ground, sizes, opts.SizeRatio)
+	res.GroundSize, res.BuiltPairs = len(ground), len(pairs)
 	if len(pairs) < MinPairs {
 		pairs = nil
 	}
@@ -497,6 +504,8 @@ type Report struct {
 	MatchedPairs int `json:"matched_pairs"`
 	// MatchedCases counts the cases that contributed pairs.
 	MatchedCases int `json:"matched_cases"`
+	// Coverage records how far the pairing reached and which limit stopped it.
+	Coverage MatchedCoverage `json:"coverage,omitzero"`
 	// SizeRatio is the pairing ratio this run used. Recorded because two runs
 	// at different ratios are two different measures, and a comparison across
 	// them would be meaningless without saying so.
@@ -639,6 +648,7 @@ func Summarize(results []CaseResult, k int) Report {
 				matchedWins[s.Strategy] += s.Matched * float64(s.Pairs)
 			}
 		}
+		rep.Coverage.observeCoverage(r.GroundSize, r.BuiltPairs)
 		for _, ss := range r.Strata {
 			key := stratumKey{ss.Strategy, ss.Stratum}
 			strata[key] = append(strata[key], ss.Precision)
