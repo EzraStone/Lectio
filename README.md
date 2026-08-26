@@ -10,16 +10,22 @@ Three different signals lead those reasons: hidden coupling, orphaning,
 centrality. A list where every row said the same thing would mean six of the
 seven signals were decoration.
 
-> **Status: Gate A failed, seven ways.** Across 30 pinned repositories, lectio
-> lost to *largest files* — and once file size is held constant the two are the
-> same strategy. Hidden coupling, the differentiator, measures a lift of 1.02
-> over 2,311 newcomer corrective commits: no relationship. Grading declarations
-> instead of files removed the file-size prior and a control that ranks the
-> longest declarations beat the ranking two to one. And with size removed by
-> construction — each touched declaration paired against one of the same size —
-> every strategy scores chance. Full result:
-> [docs/gate-a-2026-08.md](docs/gate-a-2026-08.md). See
+> **Status: Gate A failed, eleven ways, across two corpora.** Across 30 pinned
+> repositories, lectio lost to *largest files* — and once file size is held
+> constant the two are the same strategy. Hidden coupling, the differentiator,
+> measures a lift of 1.02 over 2,311 newcomer corrective commits: no
+> relationship. Grading declarations instead of files removed the file-size
+> prior and a control that ranks the longest declarations beat the ranking two
+> to one. With size removed by construction — each touched declaration paired
+> against one of the same size — every strategy scores chance, and that holds at
+> every pairing bound down to *identical* length: 2,496 pairs, 24 repositories,
+> nothing above 51.4%. A second corpus of thirty repositories that produced none
+> of these hypotheses killed four of the five that were tested on it. Full
+> result: [docs/gate-a-2026-08.md](docs/gate-a-2026-08.md). See
 > [Where this stands](#where-this-stands).
+>
+> The reading path below is what the tool produces today. It is not evidence
+> that the ordering is right, and this repository has never claimed otherwise.
 
 > Every screenshot below is a real run, captured from a terminal — against
 > [go-git](https://github.com/go-git/go-git) (7,775 symbols, 36,615 call edges)
