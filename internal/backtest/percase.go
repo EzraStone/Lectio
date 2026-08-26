@@ -214,6 +214,12 @@ func RestrictTo(r Report, keep map[string]bool) Report {
 		out.Medians[name] = Median(precisions[name])
 	}
 
+	// The family the correction is over is the family this report prints, and
+	// a restriction can change it: a strategy present in the source and absent
+	// from the subset is one fewer test. Recomputing here rather than carrying
+	// the source's adjusted values is what makes a replay recompute them too.
+	applyHolm(out.Aggregates)
+
 	// Recomputed, not copied: the fingerprint has to describe the subset, or
 	// the restricted reports would refuse to compare with each other.
 	out.CaseSet = fingerprintIDs(sortedKeys(cases))
