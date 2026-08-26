@@ -481,3 +481,60 @@ func TestReplayPrefersRecomputedRecall(t *testing.T) {
 		closeTo(t, a.RecallA, 0.31, 1e-9, a.Strategy+" recall")
 	}
 }
+
+// A restriction can change the family the correction is over — a strategy
+// present in the source and absent from the subset is one fewer test — so the
+// adjusted p has to be recomputed rather than carried.
+func TestRestrictRecomputesTheCorrection(t *testing.T) {
+	ids := caseIDs("c", 10, 40)
+	r := perCaseReport("aaa", ids, 0.53)
+	all := map[string]bool{}
+	for _, id := range ids {
+		all[id] = true
+	}
+	r = RestrictTo(r, all)
+
+	if len(r.Aggregates) != 2 {
+		t.Fatalf("got %d aggregates, want 2", len(r.Aggregates))
+	}
+	for _, a := range r.Aggregates {
+		if a.MatchedRepos.Family != 2 {
+			t.Errorf("%s reports a family of %d, want the 2 strategies present",
+				a.Strategy, a.MatchedRepos.Family)
+		}
+	}
+}
+
+// A replay recomputes the correction too, which is the point: reports written
+// before it existed get it on being re-read.
+func TestReplayAppliesTheCorrection(t *testing.T) {
+	ids := caseIDs("c", 12, 48)
+	r := perCaseReport("aaa", ids, 0.53)
+	all := map[string]bool{}
+	for _, id := range ids {
+		all[id] = true
+	}
+	r = RestrictTo(r, all)
+	// Strip it, as a report written before the correction would be.
+	for i := range r.Aggregates {
+		r.Aggregates[i].MatchedRepos.PAdjusted = 0
+		r.Aggregates[i].MatchedRepos.Family = 0
+	}
+
+	got, err := Replay(r)
+	if err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	for _, a := range got.Aggregates {
+		if a.MatchedRepos.Above+a.MatchedRepos.Below == 0 {
+			continue
+		}
+		if a.MatchedRepos.Family == 0 {
+			t.Errorf("%s came back uncorrected after a replay", a.Strategy)
+		}
+		if a.MatchedRepos.PAdjusted < a.MatchedRepos.P {
+			t.Errorf("%s adjusted %.4f down to %.4f",
+				a.Strategy, a.MatchedRepos.P, a.MatchedRepos.PAdjusted)
+		}
+	}
+}
