@@ -110,7 +110,7 @@ func couplingRun(n int, base, mult float64) []backtest.RepoCoupling {
 			CouplingResult: backtest.CouplingResult{
 				Pairs: 50, CoupledFiles: 20, NewcomerFixes: fixes, FixesOnCoupled: hit,
 				BaseRate: base, FixRate: float64(hit) / float64(fixes), Lift: mult,
-				Verdict:  "no relationship",
+				Verdict: "no relationship",
 			},
 		})
 	}
