@@ -690,8 +690,14 @@ func renderSweep(env *Env, r backtest.Report) {
 				line += fmt.Sprintf(" %9s", env.dim("—"))
 				continue
 			}
+			// Three states, not two. A cell whose interval was refused —
+			// too few repositories to resample — is not the same as one whose
+			// interval straddles chance, and printing them identically is how
+			// a column resting on four repositories reads like a measurement.
 			text := fmt.Sprintf("%8.1f%%", cell.Matched*100)
 			switch {
+			case cell.CI.Units < backtest.MinClusters:
+				text = env.dim(fmt.Sprintf("%7.1f%%?", cell.Matched*100))
 			case !cell.CI.ExcludesChance():
 				text = env.dim(text)
 			case cell.Matched > backtest.MatchedChance:
@@ -707,17 +713,42 @@ func renderSweep(env *Env, r backtest.Report) {
 	// The denominators, which is the half of the sweep that is easy to skip
 	// and changes how every cell reads.
 	counts := fmt.Sprintf("  %-26s", "cases / pairs")
+	repos := fmt.Sprintf("  %-26s", "repositories")
+	var thin bool
 	for _, ratio := range ratios {
-		cases, pairs := 0, 0
+		cases, pairs, units := 0, 0, 0
 		for _, row := range rows {
-			if cell, ok := row.At(ratio); ok && cell.Cases > cases {
+			cell, ok := row.At(ratio)
+			if !ok {
+				continue
+			}
+			if cell.Cases > cases {
 				cases, pairs = cell.Cases, cell.Pairs
+			}
+			if cell.CI.Units > units {
+				units = cell.CI.Units
 			}
 		}
 		counts += fmt.Sprintf(" %9s", fmt.Sprintf("%d/%d", cases, pairs))
+		label := itoa(units)
+		if units < backtest.MinClusters {
+			label += "?"
+			thin = true
+		}
+		repos += fmt.Sprintf(" %9s", label)
 	}
 	env.out("  %s", dashes(28+10*len(ratios)))
 	env.out("%s", env.dim(counts))
+	env.out("%s", env.dim(repos))
+	if thin {
+		for _, l := range wrap(fmt.Sprintf(
+			"? marks a column resampled over fewer than %d repositories, where no interval "+
+				"is computed at all. The point estimate is still the arithmetic; it simply "+
+				"carries no statement about how far it could have landed from chance by "+
+				"accident.", backtest.MinClusters), 72) {
+			env.out("%s", env.dim("  "+l))
+		}
+	}
 
 	for _, l := range wrap(
 		"Read down a column, not across a row. A tighter ratio leaves less size "+
