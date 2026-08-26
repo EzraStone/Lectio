@@ -1,6 +1,9 @@
 package backtest
 
-import "sort"
+import (
+	"fmt"
+	"sort"
+)
 
 // After ten runs the case set has moved on every repeat of every command: 85
 // then 77, 138 then 161, 77 then 74. Which cases survive depends on whether
@@ -31,8 +34,14 @@ type CaseScore struct {
 	Repo      string  `json:"repo"`
 	Strategy  string  `json:"strategy"`
 	Precision float64 `json:"precision"`
-	Matched   float64 `json:"matched,omitzero"`
-	Pairs     int     `json:"pairs,omitzero"`
+	// Recall and MRR complete the headline row. They were left out of the
+	// first version on the grounds that no comparison reads them, which was
+	// true of comparisons and false of replays: a report re-rendered without
+	// them prints two columns of zeroes that look like measurements.
+	Recall  float64 `json:"recall,omitzero"`
+	MRR     float64 `json:"mrr,omitzero"`
+	Matched float64 `json:"matched,omitzero"`
+	Pairs   int     `json:"pairs,omitzero"`
 }
 
 // caseID is the identity a case is known by across runs.
@@ -58,6 +67,8 @@ func collectPerCase(results []CaseResult) []CaseScore {
 				Repo:      r.Case.Repo,
 				Strategy:  s.Strategy,
 				Precision: s.Precision,
+				Recall:    s.Recall,
+				MRR:       s.MRR,
 				Matched:   s.Matched,
 				Pairs:     s.Pairs,
 			})
@@ -134,21 +145,38 @@ func RestrictTo(r Report, keep map[string]bool) Report {
 	}
 
 	precisions := map[string][]float64{}
+	recalls := map[string][]float64{}
+	mrrs := map[string][]float64{}
 	matchedObs := map[string][]Observation{}
 	matchedWins := map[string]float64{}
 	matchedPairs := map[string]int{}
-	var order []string
 	cases := map[string]bool{}
+
+	// Strategy order follows the report being restricted, not the order the
+	// per-case scores happen to be sorted in. The table's order is a choice —
+	// lectio first, controls last — and rebuilding it alphabetically would
+	// silently reorder every replayed report.
+	order := strategyOrder(r)
+	known := make(map[string]bool, len(order))
+	for _, name := range order {
+		known[name] = true
+	}
 
 	for _, cs := range r.PerCase {
 		if !keep[cs.Case] {
 			continue
 		}
 		cases[cs.Case] = true
-		if _, seen := precisions[cs.Strategy]; !seen {
+		if !known[cs.Strategy] {
+			// A strategy in the per-case scores that the aggregates never
+			// named. Should not happen, but dropping it silently would be
+			// worse than appending it at the end.
+			known[cs.Strategy] = true
 			order = append(order, cs.Strategy)
 		}
 		precisions[cs.Strategy] = append(precisions[cs.Strategy], cs.Precision)
+		recalls[cs.Strategy] = append(recalls[cs.Strategy], cs.Recall)
+		mrrs[cs.Strategy] = append(mrrs[cs.Strategy], cs.MRR)
 		if cs.Pairs > 0 {
 			matchedObs[cs.Strategy] = append(matchedObs[cs.Strategy], Observation{
 				Repo: cs.Repo, Accuracy: cs.Matched, Pairs: cs.Pairs,
@@ -164,11 +192,11 @@ func RestrictTo(r Report, keep map[string]bool) Report {
 	}
 
 	for _, name := range order {
-		a := Aggregate{
-			Strategy:   name,
-			Cases:      len(precisions[name]),
-			PrecisionA: mean(precisions[name]),
+		if len(precisions[name]) == 0 {
+			// Named in the aggregates but absent from the kept subset.
+			continue
 		}
+		a := Mean(name, precisions[name], recalls[name], mrrs[name])
 		if obs := matchedObs[name]; len(obs) > 0 {
 			a.MatchedA = meanAccuracy(obs)
 			a.MatchedCI = BootstrapInterval(obs, DefaultLevel, BootstrapIters, bootstrapSeed)
@@ -189,5 +217,67 @@ func RestrictTo(r Report, keep map[string]bool) Report {
 	// Recomputed, not copied: the fingerprint has to describe the subset, or
 	// the restricted reports would refuse to compare with each other.
 	out.CaseSet = fingerprintIDs(sortedKeys(cases))
+	return out
+}
+
+// Replay recomputes a stored report's aggregates from its per-case scores,
+// using whatever the current code does with them.
+//
+// This exists because the analysis has changed more often than the data. Every
+// interval, every sign test and every leak check in this package landed after
+// the runs they were needed for, and each one cost another pass over the
+// corpus — forty minutes to add a column to numbers that were already on disk.
+// The per-case scores are the run; the aggregates are a view of it.
+//
+// What a replay cannot do is change what was measured. The pairing ratio, the
+// collapse rule and the target are properties of the run, and a replay carries
+// them forward untouched. So is the sweep, which was computed from pairings a
+// replay no longer has. Strata are kept for the same reason: they are scored
+// per band at index time and are not derivable from a per-case score.
+func Replay(r Report) (Report, error) {
+	if len(r.PerCase) == 0 {
+		return r, fmt.Errorf("this report carries no per-case scores, so there is nothing to "+
+			"recompute — it predates them, or was written by a run that scored no cases "+
+			"(case set %q, %d cases)", r.CaseSet, r.Cases)
+	}
+
+	keep := make(map[string]bool, len(r.PerCase))
+	for _, cs := range r.PerCase {
+		keep[cs.Case] = true
+	}
+	out := RestrictTo(r, keep)
+
+	// RestrictTo drops what a *subset* cannot claim. A replay is not a subset:
+	// it covers exactly the cases the original did, so everything describing
+	// that population is still true of it.
+	out.Schema = r.Schema
+	out.Failed, out.Degraded, out.Unscorable = r.Failed, r.Degraded, r.Unscorable
+	out.FailureReasons = r.FailureReasons
+	out.Coverage = r.Coverage
+	out.Strata = r.Strata
+	out.Sweep = r.Sweep
+
+	// The verdict is re-derived rather than copied. It is a reading of the
+	// aggregates, and the aggregates have just been recomputed; carrying the
+	// old one forward is how a stale conclusion outlives the numbers under it.
+	out.Verdict = decide(out)
+
+	if out.CaseSet != r.CaseSet {
+		// The fingerprint is over the same case IDs both times, so this cannot
+		// happen without the per-case scores disagreeing with the header —
+		// which means the file was edited or truncated.
+		return out, fmt.Errorf("replaying %s produced case set %s: the per-case scores do not "+
+			"match the header, so this file has been altered since it was written",
+			r.CaseSet, out.CaseSet)
+	}
+	return out, nil
+}
+
+// strategyOrder returns the order a report's table was printed in.
+func strategyOrder(r Report) []string {
+	out := make([]string, 0, len(r.Aggregates))
+	for _, a := range r.Aggregates {
+		out = append(out, a.Strategy)
+	}
 	return out
 }
