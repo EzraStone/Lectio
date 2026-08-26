@@ -30,6 +30,8 @@ seven signals were decoration.
 > Every screenshot below is a real run, captured from a terminal — against
 > [go-git](https://github.com/go-git/go-git) (7,775 symbols, 36,615 call edges)
 > unless noted. None of them are mockups, including the one that says FAIL.
+> Some predate columns the report has since grown; where that matters the
+> caption says so, and the tables in the text are the current numbers.
 
 ## The one load-bearing rule
 
@@ -296,7 +298,9 @@ which makes the column readable with no baseline beside it:
 ![Gate A graded in declarations with a size-matched column: lectio at 10.5 percent precision and 49.5 percent matched, largest symbols at 22.8 percent precision and 52.0 percent matched, every strategy between 48.3 and 52.0 percent over 2891 size-matched pairs from 67 cases, with a caption stating that 50 percent is chance and size cannot beat it by construction.](docs/images/matched.png)
 
 <sub>The precision column and the matched column disagree completely, which is
-the finding: everything precision@10 rewards, a size-matched pair removes.</sub>
+the finding: everything precision@10 rewards, a size-matched pair removes. This
+capture predates the confidence intervals, the per-repository sign test and the
+ratio sweep — the numbers are unchanged, the columns beside them are not.</sub>
 
 2,891 pairs from 67 cases, every strategy within its own interval of chance.
 
