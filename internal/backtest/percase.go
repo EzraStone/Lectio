@@ -257,6 +257,20 @@ func Replay(r Report) (Report, error) {
 	out.Strata = r.Strata
 	out.Sweep = r.Sweep
 
+	// Recall and MRR were added to CaseScore after the first reports were
+	// written, so replaying one of those recomputes them as zero. A replay
+	// covers exactly the cases the run did, which makes the stored means still
+	// true of it — carrying them is right where recomputing them is not.
+	stored := byStrategy(r)
+	for i, a := range out.Aggregates {
+		if a.RecallA != 0 || a.MRR != 0 {
+			continue
+		}
+		if was, ok := stored[a.Strategy]; ok {
+			out.Aggregates[i].RecallA, out.Aggregates[i].MRR = was.RecallA, was.MRR
+		}
+	}
+
 	// The verdict is re-derived rather than copied. It is a reading of the
 	// aggregates, and the aggregates have just been recomputed; carrying the
 	// old one forward is how a stale conclusion outlives the numbers under it.
