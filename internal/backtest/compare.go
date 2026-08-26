@@ -9,38 +9,48 @@ import (
 type Comparison struct {
 	// Comparable is false when the two runs measured different populations,
 	// which makes every delta below meaningless.
-	Comparable bool
+	Comparable bool `json:"comparable"`
 	// Why explains an incomparable pair in words.
-	Why string
+	Why string `json:"why,omitempty"`
 	// Rows are per-strategy deltas, ordered by the size of the change.
-	Rows []ComparisonRow
+	Rows []ComparisonRow `json:"rows,omitempty"`
 	// OnlyInA and OnlyInB name strategies present in one run and not the
 	// other.
-	OnlyInA []string
-	OnlyInB []string
+	OnlyInA []string `json:"only_in_a,omitempty"`
+	OnlyInB []string `json:"only_in_b,omitempty"`
 	// Intersected is true when the two runs scored different case sets and the
 	// comparison was rebuilt over the cases they share.
-	Intersected bool
+	Intersected bool `json:"intersected,omitempty"`
 	// SharedCases, DroppedFromA and DroppedFromB describe that rebuild. They
 	// are the first thing to read on an intersected comparison: a diff over 40
 	// shared cases out of 161 and 74 is a different object from a diff over
 	// 150 of 161.
-	SharedCases  int
-	DroppedFromA int
-	DroppedFromB int
+	SharedCases  int `json:"shared_cases,omitempty"`
+	DroppedFromA int `json:"dropped_from_a,omitempty"`
+	DroppedFromB int `json:"dropped_from_b,omitempty"`
+	// CasesOnlyInA and CasesOnlyInB name the cases each run reached alone.
+	// Populated only when asked for: on a drifting corpus the lists can be
+	// longer than the rest of the comparison put together, and the counts
+	// above answer the usual question.
+	CasesOnlyInA []string `json:"cases_only_in_a,omitempty"`
+	CasesOnlyInB []string `json:"cases_only_in_b,omitempty"`
 }
 
 // ComparisonRow is one strategy's before and after.
 type ComparisonRow struct {
-	Strategy string
+	Strategy string `json:"strategy"`
 	// Precision and Matched are the two headline measures. Delta fields are
 	// B minus A, so a positive number means the second run scored higher.
-	PrecisionA, PrecisionB, PrecisionDelta float64
-	MatchedA, MatchedB, MatchedDelta       float64
+	PrecisionA     float64 `json:"precision_a"`
+	PrecisionB     float64 `json:"precision_b"`
+	PrecisionDelta float64 `json:"precision_delta"`
+	MatchedA       float64 `json:"matched_a,omitzero"`
+	MatchedB       float64 `json:"matched_b,omitzero"`
+	MatchedDelta   float64 `json:"matched_delta,omitzero"`
 	// SignFlip marks a matched-pair result that crossed chance. A strategy
 	// moving from 52% to 48% has not merely got worse, it has changed what it
 	// claims — and that is invisible in a delta of four points.
-	SignFlip bool
+	SignFlip bool `json:"sign_flip,omitempty"`
 	// MatchedOverlap is true when the two runs' matched-pair intervals overlap,
 	// which means the delta beside them is not a finding.
 	//
@@ -49,10 +59,10 @@ type ComparisonRow struct {
 	// and the three-point version was quoted for weeks because a delta printed
 	// beside no interval reads as a measurement. A row where the intervals
 	// overlap is a row where the second run has not shown the first was wrong.
-	MatchedOverlap bool
+	MatchedOverlap bool `json:"matched_overlap,omitempty"`
 	// MatchedIntervals is false when either run predates the interval work, so
 	// a reader can tell "the intervals overlap" from "there are no intervals".
-	MatchedIntervals bool
+	MatchedIntervals bool `json:"matched_intervals,omitempty"`
 }
 
 // Decisive reports whether a matched-pair delta is large enough, relative to
@@ -205,4 +215,29 @@ func abs(f float64) float64 {
 // stronger way would be the same error in the opposite direction.
 func intervalsOverlap(a, b Interval) bool {
 	return a.Lo <= b.Hi && b.Lo <= a.Hi
+}
+
+// WithCaseLists fills in which cases each run reached alone.
+//
+// Separate from Compare because the lists are diagnostic rather than part of
+// the comparison: they answer "is the drift one repository or spread across
+// the corpus", which is a question about the harness, not about the ranking.
+func WithCaseLists(c Comparison, a, b Report) Comparison {
+	inB := map[string]bool{}
+	for _, id := range CaseIDs(b) {
+		inB[id] = true
+	}
+	for _, id := range CaseIDs(a) {
+		if inB[id] {
+			delete(inB, id)
+			continue
+		}
+		c.CasesOnlyInA = append(c.CasesOnlyInA, id)
+	}
+	for id := range inB {
+		c.CasesOnlyInB = append(c.CasesOnlyInB, id)
+	}
+	sort.Strings(c.CasesOnlyInA)
+	sort.Strings(c.CasesOnlyInB)
+	return c
 }
