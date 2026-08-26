@@ -24,6 +24,29 @@ One of the five hypotheses survived, and it was not a weighting:
   3.9 points clear of the full ranking. Churn-only, the surviving candidate,
   is +1.8 over lectio and behind three baselines.
 
+### The sweep at declaration granularity, where the bound does nothing
+
+Run 10 found the pairing bound leaking two points at file granularity. Run 11
+asked the same question of the declaration targets, where run 7's "everything
+is chance" conclusion had been computed at the same unexamined 1.25x.
+
+- **No row moves more than a point across the whole ladder**, and coverage
+  barely changes: tightening from 2.00x to 1.00x costs 18% of the pairs here
+  against 81% at file level. Declarations are dense in size space and files are
+  not, so the bound is doing all the work at one granularity and almost none at
+  the other.
+- **Nothing clears chance at any ratio.** The exact-match column is the
+  strongest measurement the project has produced: 2,496 pairs between
+  declarations of identical length, across 24 repositories, every strategy
+  between 47.6% and 51.4%.
+- **The two granularities do not deserve equal confidence.** The file-level
+  numbers are sensitive to a constant nobody derived and to a case set that
+  moves between runs; the declaration-level numbers are sensitive to neither.
+- **The case-set instability was a file-target property, not a harness one.**
+  The declaration targets have produced fingerprint `0d1e81666c55` on all three
+  runs that used them, weeks apart and across a binary change. The write-up had
+  generalized the drift to the whole harness since run 1.
+
 ### Two runs can now be compared even when they scored different cases
 
 `compare` refused across two case sets, which was correct and a dead end: after
