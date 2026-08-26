@@ -264,3 +264,73 @@ func TestCompareOnMatchingCaseSetsIsSilentAboutIt(t *testing.T) {
 		t.Errorf("a direct comparison printed the intersection warning:\n%s", got)
 	}
 }
+
+func TestCaseDriftGroupsByRepository(t *testing.T) {
+	env, out, _ := testEnv()
+	c := backtest.WithCaseLists(
+		backtest.Compare(
+			perCaseCLIReport("aaa", 0, 50, 0.53),
+			perCaseCLIReport("bbb", 10, 50, 0.56),
+		),
+		perCaseCLIReport("aaa", 0, 50, 0.53),
+		perCaseCLIReport("bbb", 10, 50, 0.56),
+	)
+	renderComparison(env, c, "before.json", "after.json")
+	renderCaseDrift(env, c)
+	got := plain(out.String())
+
+	if !strings.Contains(got, "Case drift") {
+		t.Errorf("no drift section:\n%s", got)
+	}
+	for _, want := range []string{"only in the first run", "10 cases", "only in the second"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("drift section is missing %q:\n%s", want, got)
+		}
+	}
+	// The fixture spreads its cases over nine repositories round-robin, so the
+	// ten dropped from each side should not all land in one.
+	if strings.Count(got, "repo0") < 2 {
+		t.Errorf("drift was not broken down by repository:\n%s", got)
+	}
+}
+
+func TestCaseDriftIsAbsentWhenNotAskedFor(t *testing.T) {
+	env, out, _ := testEnv()
+	c := backtest.Compare(
+		perCaseCLIReport("aaa", 0, 50, 0.53),
+		perCaseCLIReport("bbb", 10, 50, 0.56),
+	)
+	renderComparison(env, c, "before.json", "after.json")
+	renderCaseDrift(env, c)
+
+	if got := plain(out.String()); strings.Contains(got, "Case drift") {
+		t.Errorf("the drift section printed without --cases:\n%s", got)
+	}
+}
+
+// Most drift first, so the shape of the answer reads off the top of the list.
+func TestDriftGroupingIsHeaviestFirst(t *testing.T) {
+	got := groupByRepoPrefix([]string{
+		"quiet@r1/a",
+		"loud@r2/b", "loud@r3/c", "loud@r4/d",
+		"middling@r5/e", "middling@r6/f",
+	})
+	if len(got) != 3 {
+		t.Fatalf("got %d groups, want 3", len(got))
+	}
+	for i, want := range []string{"loud", "middling", "quiet"} {
+		if !strings.HasPrefix(got[i], want) {
+			t.Errorf("group %d is %q, want %s first", i, got[i], want)
+		}
+	}
+	if !strings.HasSuffix(strings.TrimSpace(got[0]), "3") {
+		t.Errorf("the heaviest group does not carry its count: %q", got[0])
+	}
+}
+
+func TestDriftGroupingBreaksTiesByName(t *testing.T) {
+	got := groupByRepoPrefix([]string{"zeta@r1/a", "alpha@r2/b"})
+	if !strings.HasPrefix(got[0], "alpha") {
+		t.Errorf("tied repositories ordered %q first", got[0])
+	}
+}
