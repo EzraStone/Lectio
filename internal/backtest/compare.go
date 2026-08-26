@@ -84,11 +84,18 @@ func (r ComparisonRow) Decisive() bool {
 func Compare(a, b Report) Comparison {
 	var c Comparison
 
-	// Before anything else: if the two runs landed on different populations
-	// but both carry per-case numbers, rebuild them over the cases they share.
-	// That is a real comparison where refusing outright is merely a correct
-	// one, and after ten runs the same command has never twice produced the
-	// same case set.
+	// The structural refusals first, because they are cheap and because
+	// intersecting two runs that measured different things would be work done
+	// to reach the same refusal.
+	if why := structurallyIncomparable(a, b); why != "" {
+		c.Why = why
+		return withRows(c, a, b)
+	}
+
+	// Then: if the two runs landed on different populations but both carry
+	// per-case numbers, rebuild them over the cases they share. That is a real
+	// comparison where refusing outright is merely a correct one, and after ten
+	// runs the same command has never twice produced the same case set.
 	var intersection struct {
 		shared, onlyA, onlyB int
 		applied              bool
@@ -107,8 +114,6 @@ func Compare(a, b Report) Comparison {
 	}
 
 	switch {
-	case a.CaseSet == "" || b.CaseSet == "":
-		c.Why = "one of the runs scored no cases"
 	case a.CaseSet != b.CaseSet:
 		shared, _, _ := SharedCases(a, b)
 		detail := fmt.Sprintf("they share %d", len(shared))
@@ -121,21 +126,6 @@ func Compare(a, b Report) Comparison {
 				"revision's dependencies resolved, so these two runs measured different "+
 				"populations and the deltas would not mean anything",
 			a.CaseSet, b.CaseSet, a.Cases, b.Cases, detail, MinSharedCases)
-	case a.Target != b.Target:
-		c.Why = fmt.Sprintf("different targets (%s vs %s) — precision over declarations is "+
-			"not comparable with precision over file paths", a.Target, b.Target)
-	case a.Collapse != b.Collapse && !a.Target.Symbolic():
-		c.Why = fmt.Sprintf("different collapse rules (%s vs %s), which is worth several points "+
-			"on its own", a.Collapse, b.Collapse)
-	case a.SizeRatio.Or(MaxSizeRatio) != b.SizeRatio.Or(MaxSizeRatio):
-		// Precision is unaffected by the pairing ratio, but the matched column
-		// is the reason this command exists, and a looser ratio admits more
-		// pairs while leaving more size information inside each one. Two runs
-		// at different ratios computed two different measures.
-		c.Why = fmt.Sprintf("different size-matching ratios (%.2fx vs %.2fx) — a looser ratio "+
-			"admits more pairs and leaves more size inside each one, so the matched columns "+
-			"are not the same measure",
-			a.SizeRatio.Or(MaxSizeRatio), b.SizeRatio.Or(MaxSizeRatio))
 	default:
 		c.Comparable = true
 	}
@@ -146,6 +136,44 @@ func Compare(a, b Report) Comparison {
 		c.DroppedFromB = intersection.onlyB
 	}
 
+	return withRows(c, a, b)
+}
+
+// structurallyIncomparable names the differences that make two runs different
+// measurements rather than different samples. Empty when there are none.
+//
+// Separate from the case-set question, and checked before it: two runs of
+// different targets do not become comparable by being restricted to the cases
+// they share.
+func structurallyIncomparable(a, b Report) string {
+	switch {
+	case a.CaseSet == "" || b.CaseSet == "":
+		return "one of the runs scored no cases"
+	case a.Target != b.Target:
+		return fmt.Sprintf("different targets (%s vs %s) — precision over declarations is "+
+			"not comparable with precision over file paths", a.Target, b.Target)
+	case a.Collapse != b.Collapse && !a.Target.Symbolic():
+		return fmt.Sprintf("different collapse rules (%s vs %s), which is worth several points "+
+			"on its own", a.Collapse, b.Collapse)
+	case a.SizeRatio.Or(MaxSizeRatio) != b.SizeRatio.Or(MaxSizeRatio):
+		// Precision is unaffected by the pairing ratio, but the matched column
+		// is the reason this command exists, and a looser ratio admits more
+		// pairs while leaving more size information inside each one. Two runs
+		// at different ratios computed two different measures.
+		return fmt.Sprintf("different size-matching ratios (%.2fx vs %.2fx) — a looser ratio "+
+			"admits more pairs and leaves more size inside each one, so the matched columns "+
+			"are not the same measure",
+			a.SizeRatio.Or(MaxSizeRatio), b.SizeRatio.Or(MaxSizeRatio))
+	}
+	return ""
+}
+
+// withRows fills in the per-strategy deltas.
+//
+// Filled in even on a refusal: knowing which strategies the two runs had in
+// common is diagnostic, and the caller has already been told not to read the
+// numbers.
+func withRows(c Comparison, a, b Report) Comparison {
 	inA := byStrategy(a)
 	inB := byStrategy(b)
 
