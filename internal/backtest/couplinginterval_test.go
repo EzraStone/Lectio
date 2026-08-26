@@ -84,8 +84,14 @@ func TestBootstrapCouplingWidensWhenRepositoriesDisagree(t *testing.T) {
 func TestBootstrapCouplingRefusesBelowTheClusterFloor(t *testing.T) {
 	for n := 1; n < MinClusters; n++ {
 		iv := BootstrapCoupling(couplingRepos(n, 0.4, 1.5), DefaultLevel, 2000, 2)
+		if iv.Resampled {
+			t.Errorf("%d repositories were resampled", n)
+		}
 		if iv.Lo != 0 || iv.Hi != 0 {
 			t.Errorf("%d repositories produced [%.3f, %.3f]", n, iv.Lo, iv.Hi)
+		}
+		if iv.Repos != n {
+			t.Errorf("a declined interval reports %d repositories, want %d", iv.Repos, n)
 		}
 		if iv.ExcludesNoRelationship() {
 			t.Errorf("%d repositories claimed a relationship", n)
@@ -121,23 +127,24 @@ func TestExcludesNoRelationshipReadsOne(t *testing.T) {
 		{0.90, 1.20, false}, // straddles
 		{1.00, 1.40, false}, // touches exactly
 	} {
-		iv := CouplingInterval{Lo: tc.lo, Hi: tc.hi, Repos: 20}
+		iv := CouplingInterval{Lo: tc.lo, Hi: tc.hi, Repos: 20, Resampled: true}
 		if got := iv.ExcludesNoRelationship(); got != tc.want {
 			t.Errorf("[%.2f, %.2f] = %v, want %v", tc.lo, tc.hi, got, tc.want)
 		}
 	}
-	if (CouplingInterval{Lo: 1.1, Hi: 1.5}).ExcludesNoRelationship() {
-		t.Error("an interval from no repositories claimed a relationship")
+	// A declined interval carries a repository count and makes no claim.
+	if (CouplingInterval{Lo: 1.1, Hi: 1.5, Repos: 4}).ExcludesNoRelationship() {
+		t.Error("an interval the bootstrap declined claimed a relationship")
 	}
 }
 
 // The question a null result has to answer: was the interval tight enough to
 // have excluded anything worth having?
 func TestCouplingPowerReportsWhatCouldHaveBeenSeen(t *testing.T) {
-	tight := CouplingInterval{Point: 1.02, Lo: 0.94, Hi: 1.11, Repos: 24}
+	tight := CouplingInterval{Point: 1.02, Lo: 0.94, Hi: 1.11, Repos: 24, Resampled: true}
 	closeTo(t, CouplingPower(tight), 0.11, 1e-9, "power of a tight null")
 
-	loose := CouplingInterval{Point: 1.02, Lo: 0.50, Hi: 2.00, Repos: 24}
+	loose := CouplingInterval{Point: 1.02, Lo: 0.50, Hi: 2.00, Repos: 24, Resampled: true}
 	closeTo(t, CouplingPower(loose), 1.00, 1e-9, "power of a loose null")
 
 	if CouplingPower(loose) <= CouplingPower(tight) {
@@ -145,5 +152,29 @@ func TestCouplingPowerReportsWhatCouldHaveBeenSeen(t *testing.T) {
 	}
 	if got := CouplingPower(CouplingInterval{}); got != 0 {
 		t.Errorf("power of an absent interval = %v", got)
+	}
+	positive := CouplingInterval{Point: 1.6, Lo: 1.3, Hi: 2.0, Repos: 24, Resampled: true}
+	if got := CouplingPower(positive); got != 0 {
+		t.Errorf("power of a positive result = %v, want 0 — it is not a question about one", got)
+	}
+}
+
+// A corpus whose repositories all agree has no between-repository variance,
+// and an interval that collapses onto the point is the right answer. It must
+// not be confused with an interval the bootstrap declined.
+func TestAZeroWidthIntervalIsStillAnInterval(t *testing.T) {
+	iv := BootstrapCoupling(couplingRepos(12, 0.5, 1.02), DefaultLevel, 2000, 6)
+	if !iv.Resampled {
+		t.Fatal("twelve identical repositories were declined")
+	}
+	if iv.Hi-iv.Lo > 1e-9 {
+		t.Errorf("identical repositories gave a %.6f-wide interval", iv.Hi-iv.Lo)
+	}
+	if !iv.ExcludesNoRelationship() {
+		t.Error("an interval that collapses onto 1.02 does not read as clear of 1.0")
+	}
+	// Power is a question about a null result. This one is not null.
+	if got := CouplingPower(iv); got != 0 {
+		t.Errorf("power of an interval that excludes 1.0 = %v, want 0", got)
 	}
 }

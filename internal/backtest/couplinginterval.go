@@ -23,8 +23,19 @@ type CouplingInterval struct {
 	Lo    float64 `json:"lo"`
 	Hi    float64 `json:"hi"`
 	Level float64 `json:"level"`
-	// Repos is how many repositories the resampling drew from.
+	// Repos is how many repositories cleared both sample-size guards. It is
+	// reported whether or not the resampling ran, because "four repositories,
+	// no interval" is a more useful thing to print than "no interval".
 	Repos int `json:"repos"`
+	// Resampled is false when the bootstrap declined for having too few
+	// repositories.
+	//
+	// A flag rather than a zero-width range, because zero width is a legitimate
+	// answer here: a corpus whose repositories all agree has no between-repository
+	// variance, and an interval that collapses onto the point is what should be
+	// reported. Conflating the two would print "no interval" for the tightest
+	// result a run can produce.
+	Resampled bool `json:"resampled"`
 }
 
 // ExcludesNoRelationship reports whether the interval sits clear of 1.0.
@@ -33,13 +44,12 @@ type CouplingInterval struct {
 // exactly one. An interval containing 1.0 has not shown that corrective work
 // concentrates on hidden-coupled files, nor that it avoids them.
 //
-// A refused interval — too few repositories to resample — has Lo and Hi both
-// zero and makes no claim. Lift has no upper bound, so there is no "whole
-// scale" to fall back to the way a proportion has [0, 1]; the empty range is
-// the sentinel, and it has to be checked for or it reads as clear of one from
-// below.
+// A refused interval makes no claim in either direction. Lift has no upper
+// bound, so there is no "whole scale" to fall back to the way a proportion has
+// [0, 1]; Resampled is the flag that separates a declined interval from a
+// tight one.
 func (iv CouplingInterval) ExcludesNoRelationship() bool {
-	return iv.Repos > 0 && iv.Hi > iv.Lo && (iv.Lo > 1 || iv.Hi < 1)
+	return iv.Resampled && (iv.Lo > 1 || iv.Hi < 1)
 }
 
 // BootstrapCoupling resamples repositories and returns a percentile interval
@@ -94,11 +104,12 @@ func BootstrapCoupling(rs []RepoCoupling, level float64, iters int, seed int64) 
 
 	alpha := (1 - level) / 2
 	return CouplingInterval{
-		Point: point,
-		Lo:    percentileOf(lifts, alpha),
-		Hi:    percentileOf(lifts, 1-alpha),
-		Level: level,
-		Repos: len(usable),
+		Point:     point,
+		Lo:        percentileOf(lifts, alpha),
+		Hi:        percentileOf(lifts, 1-alpha),
+		Level:     level,
+		Repos:     len(usable),
+		Resampled: true,
 	}
 }
 
@@ -115,7 +126,11 @@ func BootstrapCoupling(rs []RepoCoupling, level float64, iters int, seed int64) 
 // Returned as the distance from 1.0 to the nearer end of the interval: the
 // smallest departure from no-relationship that would have landed outside it.
 func CouplingPower(iv CouplingInterval) float64 {
-	if iv.Repos == 0 || iv.Hi <= iv.Lo {
+	if !iv.Resampled || iv.ExcludesNoRelationship() {
+		// Not a question you ask of a positive result. "What could this run
+		// have detected?" only matters when it detected nothing; asking it of
+		// an interval that already excludes 1.0 returns the distance to the
+		// far end, which means nothing.
 		return 0
 	}
 	above, below := iv.Hi-1, 1-iv.Lo
