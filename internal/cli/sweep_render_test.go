@@ -199,3 +199,71 @@ func TestReportIsSilentWhenThePairingHolds(t *testing.T) {
 		t.Errorf("a clean run printed the leak warning:\n%s", got)
 	}
 }
+
+// thinSweepReport has a 1.00x column resting on four repositories — the shape
+// that reported a size strategy at 60.3% as clear of chance.
+func thinSweepReport() backtest.Report {
+	r := matchedReport()
+	r.SizeRatio = 1.25
+	r.Sweep = []backtest.RatioAggregate{
+		{Ratio: 1.00, Strategy: "largest files", Matched: 0.603, Cases: 12, Pairs: 171,
+			CI: backtest.Interval{Point: 0.603, Lo: 0, Hi: 1, Level: 0.95, Units: 4}},
+		{Ratio: 1.25, Strategy: "largest files", Matched: 0.529, Cases: 41, Pairs: 793,
+			CI: backtest.Interval{Point: 0.529, Lo: 0.502, Hi: 0.562, Level: 0.95, Units: 17}},
+	}
+	return r
+}
+
+// A column with no interval and a column whose interval straddles chance are
+// different states, and printing them identically is how four repositories
+// read like a measurement.
+func TestSweepMarksColumnsWithNoInterval(t *testing.T) {
+	env, out, _ := testEnv()
+	renderReport(env, thinSweepReport())
+	lines := sweepSection(out.String())
+
+	var row string
+	for _, l := range lines {
+		if strings.HasPrefix(strings.TrimSpace(l), "largest files") {
+			row = l
+			break
+		}
+	}
+	if row == "" {
+		t.Fatalf("no largest files row in:\n%s", strings.Join(lines, "\n"))
+	}
+	if !strings.Contains(row, "60.3%?") {
+		t.Errorf("the four-repository cell is not marked:\n%q", row)
+	}
+	if strings.Contains(row, "52.9%?") {
+		t.Errorf("the seventeen-repository cell was marked as thin:\n%q", row)
+	}
+}
+
+func TestSweepPrintsItsRepositoryCounts(t *testing.T) {
+	env, out, _ := testEnv()
+	renderReport(env, thinSweepReport())
+	got := strings.Join(strings.Fields(plain(out.String())), " ")
+
+	if !strings.Contains(got, "repositories 4? 17") {
+		t.Errorf("the repository row is missing or unmarked:\n%s", got)
+	}
+	if !strings.Contains(got, "? marks a column resampled over fewer than 8 repositories") {
+		t.Errorf("the marker is not explained:\n%s", got)
+	}
+}
+
+// A sweep where every column clears the cluster floor must not carry the
+// explanation, or the note becomes furniture.
+func TestSweepOmitsTheMarkerWhenEveryColumnIsThickEnough(t *testing.T) {
+	env, out, _ := testEnv()
+	renderReport(env, sweepReport())
+	got := plain(out.String())
+
+	if strings.Contains(got, "? marks a column") {
+		t.Errorf("a sweep with no thin columns printed the marker note:\n%s", got)
+	}
+	if !strings.Contains(strings.Join(strings.Fields(got), " "), "repositories 17 17 17") {
+		t.Errorf("the repository row is missing:\n%s", got)
+	}
+}
