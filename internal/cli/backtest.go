@@ -45,9 +45,17 @@ func runBacktest(ctx context.Context, env *Env, args []string) error {
 			"how unequal a size-matched pair may be; 1.0 admits only exact matches")
 		sweep = fs.Bool("sweep-ratio", false,
 			"also report the matched column at several pairing ratios; costs almost nothing")
+		replay = fs.String("replay", "",
+			"re-render a saved --json report using the current analysis, without re-running the corpus")
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+
+	// Checked before anything else resolves a corpus or a repository: a replay
+	// reads a file and touches nothing else.
+	if *replay != "" {
+		return runReplay(env, *replay, *asJSON)
 	}
 
 	collapseRule, err := backtest.ParseCollapse(*collapse)
@@ -784,4 +792,31 @@ func renderLeak(env *Env, r backtest.Report) {
 			env.out("%s", env.dim("  "+l))
 		}
 	}
+}
+
+// runReplay re-renders a saved report through the current analysis.
+//
+// The analysis has changed more often than the data. Intervals, the sign test
+// over repositories and the leak check all landed after the runs that needed
+// them, and each one cost another forty-minute pass over a corpus to add a
+// column to numbers already on disk. A report carries its per-case scores, so
+// it does not have to.
+func runReplay(env *Env, path string, asJSON bool) error {
+	stored, err := readReport(path)
+	if err != nil {
+		return err
+	}
+	replayed, err := backtest.Replay(stored)
+	if err != nil {
+		return err
+	}
+
+	if asJSON {
+		enc := json.NewEncoder(env.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(replayed)
+	}
+	env.note("%s %s", env.dim("replaying:"), path)
+	renderReport(env, replayed)
+	return nil
 }
