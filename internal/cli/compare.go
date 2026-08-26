@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
+	"strings"
 
 	"github.com/EzraStone/Lectio/internal/backtest"
 )
@@ -28,6 +30,8 @@ func compareCmd() *Command {
 func runCompare(_ context.Context, env *Env, args []string) error {
 	fs := newFlagSet(env, "compare", "compare <before.json> <after.json>")
 	asJSON := fs.Bool("json", false, "emit JSON instead of formatted text")
+	showCases := fs.Bool("cases", false,
+		"also list the cases each run reached alone, to see whether the drift is one repository or spread")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -46,12 +50,16 @@ func runCompare(_ context.Context, env *Env, args []string) error {
 	}
 
 	c := backtest.Compare(before, after)
+	if *showCases {
+		c = backtest.WithCaseLists(c, before, after)
+	}
 	if *asJSON {
 		enc := json.NewEncoder(env.Stdout)
 		enc.SetIndent("", "  ")
 		return enc.Encode(c)
 	}
 	renderComparison(env, c, fs.Arg(0), fs.Arg(1))
+	renderCaseDrift(env, c)
 	if !c.Comparable {
 		return fmt.Errorf("the two runs are not comparable")
 	}
@@ -172,4 +180,60 @@ func renderComparison(env *Env, c backtest.Comparison, aPath, bPath string) {
 			env.out("%s", env.warn("  "+l))
 		}
 	}
+}
+
+// renderCaseDrift lists the cases each run reached alone, grouped by
+// repository.
+//
+// Grouped, because the shape of the answer is what matters. Drift concentrated
+// in two repositories is a fact about those repositories' dependencies;
+// drift spread evenly across twenty is a fact about the harness, and only the
+// second would make the corpus unusable.
+func renderCaseDrift(env *Env, c backtest.Comparison) {
+	if len(c.CasesOnlyInA) == 0 && len(c.CasesOnlyInB) == 0 {
+		return
+	}
+	env.out("")
+	env.out("%s", env.bold("Case drift"))
+
+	for _, side := range []struct {
+		label string
+		ids   []string
+	}{
+		{"only in the first run", c.CasesOnlyInA},
+		{"only in the second", c.CasesOnlyInB},
+	} {
+		if len(side.ids) == 0 {
+			env.out("  %s %s", env.dim(fmt.Sprintf("%-24s", side.label)), env.dim("none"))
+			continue
+		}
+		env.out("  %s %d cases", fmt.Sprintf("%-24s", side.label), len(side.ids))
+		for _, line := range groupByRepoPrefix(side.ids) {
+			env.out("%s", env.dim("    "+line))
+		}
+	}
+}
+
+// groupByRepoPrefix folds case IDs into "repo: n" lines, most drift first.
+func groupByRepoPrefix(ids []string) []string {
+	counts := map[string]int{}
+	var order []string
+	for _, id := range ids {
+		repo, _, _ := strings.Cut(id, "@")
+		if counts[repo] == 0 {
+			order = append(order, repo)
+		}
+		counts[repo]++
+	}
+	sort.Slice(order, func(i, j int) bool {
+		if counts[order[i]] != counts[order[j]] {
+			return counts[order[i]] > counts[order[j]]
+		}
+		return order[i] < order[j]
+	})
+	out := make([]string, 0, len(order))
+	for _, repo := range order {
+		out = append(out, fmt.Sprintf("%-40s %d", repo, counts[repo]))
+	}
+	return out
 }
