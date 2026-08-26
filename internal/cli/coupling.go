@@ -195,12 +195,22 @@ func renderCoupling(env *Env, rs []backtest.RepoCoupling, pooled backtest.Coupli
 	env.out("  %-24s %7d %7d %9d %8.0f%% %7.2f",
 		"pooled", pooled.Pairs, pooled.NewcomerFixes, pooled.FixesOnCoupled, pooled.BaseRate*100, pooled.Lift)
 
+	iv := backtest.BootstrapCoupling(rs, backtest.DefaultLevel, backtest.BootstrapIters, couplingSeed)
+	renderCouplingInterval(env, iv)
+
 	env.out("")
 	render := env.warn
 	switch {
-	case pooled.Lift >= 1.5:
+	// Colour follows the interval where there is one. A pooled lift of 1.6 on
+	// an interval running from 0.8 is not a positive result, and colouring it
+	// green is how this project would have made the same mistake a fourth time.
+	case iv.ExcludesNoRelationship() && iv.Lo > 1:
 		render = env.good
-	case pooled.Lift < 0.9:
+	case iv.ExcludesNoRelationship():
+		render = env.bad
+	case !iv.Resampled && pooled.Lift >= 1.5:
+		render = env.good
+	case !iv.Resampled && pooled.Lift < 0.9:
 		render = env.bad
 	}
 	env.out("%s %s", render("reading:"), pooled.Verdict)
@@ -209,6 +219,45 @@ func renderCoupling(env *Env, rs []backtest.RepoCoupling, pooled backtest.Coupli
 	env.out("%s", env.dim("  over the rate at which their ordinary commits do. 1.0 is no relationship."))
 	env.out("%s", env.dim("  Comparing against their own commits rather than everyone's is what keeps"))
 	env.out("%s", env.dim("  this from measuring how new someone is."))
+}
+
+// couplingSeed fixes the resampling so the interval reproduces alongside the
+// lift it sits beside.
+const couplingSeed = 20260826
+
+// renderCouplingInterval prints the interval and, when the result is a null,
+// what the corpus could have detected.
+//
+// The second half is the part that is usually missing. "No relationship" and
+// "not enough evidence to see one" produce the same lift, and only the width
+// of the interval separates them — so a null result that does not state what it
+// could have seen is not yet a refutation of anything.
+func renderCouplingInterval(env *Env, iv backtest.CouplingInterval) {
+	if !iv.Resampled {
+		for _, l := range wrap(fmt.Sprintf(
+			"No interval: %d repositories cleared both sample-size guards, fewer than the %d "+
+				"a resample needs. The pooled lift is still the arithmetic over everything "+
+				"above it.", iv.Repos, backtest.MinClusters), 70) {
+			env.out("%s", env.dim("  "+l))
+		}
+		return
+	}
+
+	env.out("")
+	env.out("  %-24s %s", "95% interval",
+		fmt.Sprintf("%.2f to %.2f, bootstrapped over %d repositories", iv.Lo, iv.Hi, iv.Repos))
+
+	if iv.ExcludesNoRelationship() {
+		return
+	}
+	for _, l := range wrap(fmt.Sprintf(
+		"The interval contains 1.0, so this run has not shown a relationship in either "+
+			"direction. It has ruled out one: a lift of %.2f or more would have landed "+
+			"outside it. Read the result as \"nothing above %.0f%%\" rather than as "+
+			"\"nothing\".",
+		1+backtest.CouplingPower(iv), backtest.CouplingPower(iv)*100), 70) {
+		env.out("%s", env.dim("  "+l))
+	}
 }
 
 func truncateName(s string, n int) string {
