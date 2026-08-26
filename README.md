@@ -351,6 +351,24 @@ out cleaner rather than weaker. At 2.00x nearly everything clears chance,
 which is the warning: a result that appears only at the loose end of the ladder
 is a result about the bound.
 
+**The same sweep at declaration granularity moves nothing.** Declarations are
+dense in size space where files are sparse — for almost any declaration there
+is another within a percent of the same length — so tightening from 2.00x to
+1.00x costs 18% of the pairs here against 81% at file level, and no row shifts
+by more than a point. Nothing clears chance at any ratio.
+
+That makes the exact-match column the strongest measurement in the project:
+**2,496 pairs between declarations of identical length, across 24
+repositories, every strategy between 47.6% and 51.4%.** Seven signals, a call
+graph, a PageRank, twelve months of history, four baselines and a size control
+— and among declarations of exactly the same size, none of them can tell which
+one a newcomer touched.
+
+The two granularities therefore do not deserve equal confidence. The file-level
+numbers move with a constant nobody derived and with a case set that changes
+between runs. The declaration-level numbers move with neither: three runs, one
+case-set fingerprint, and a ratio ladder that changes nothing.
+
 Gate A is a hard stop and it has now been answered eight ways. Nothing below it
 should be built on this ranking. The likely reading is not that the ranking is
 behind but that the question is wrong: among declarations of equal size,
