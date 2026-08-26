@@ -33,15 +33,6 @@ type Consistency struct {
 // Repos is how many repositories contributed.
 func (c Consistency) Repos() int { return c.Above + c.Below + c.Level }
 
-// Share is the fraction of decided repositories that went above chance.
-func (c Consistency) Share() float64 {
-	decided := c.Above + c.Below
-	if decided == 0 {
-		return 0
-	}
-	return float64(c.Above) / float64(decided)
-}
-
 // ConsistencyLevel is the p below which a split is worth remarking on.
 //
 // The conventional 0.05, and it is doing less work here than the number

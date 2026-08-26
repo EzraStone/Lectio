@@ -198,8 +198,9 @@ func TestANarrowMajorityIsNotAReading(t *testing.T) {
 	if c.Lopsided() {
 		t.Errorf("13 of 24 read as lopsided at p=%.4f", c.P)
 	}
-	if got := c.Share(); got <= 0.5 {
-		t.Errorf("Share() = %.3f, want the majority it is not a reading of", got)
+	if c.Above <= c.Below {
+		t.Errorf("got %d above and %d below — the fixture is meant to be a majority "+
+			"that is still not a reading", c.Above, c.Below)
 	}
 }
 

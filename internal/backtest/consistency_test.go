@@ -24,7 +24,6 @@ func TestRepoConsistencyCountsDirections(t *testing.T) {
 	if c.Repos() != 5 {
 		t.Errorf("Repos() = %d, want 5", c.Repos())
 	}
-	closeTo(t, c.Share(), 0.75, 1e-12, "share of decided repositories")
 }
 
 // One vote per repository, cast by the mean of its cases. A repository that
@@ -131,9 +130,6 @@ func TestConsistencyOfNothingClaimsNothing(t *testing.T) {
 	c := RepoConsistency(nil)
 	if c.Repos() != 0 || c.P != 1 || c.Lopsided() {
 		t.Errorf("got %+v from no observations", c)
-	}
-	if c.Share() != 0 {
-		t.Errorf("Share() = %v with nothing decided", c.Share())
 	}
 }
 
