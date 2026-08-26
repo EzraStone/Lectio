@@ -504,6 +504,11 @@ type Report struct {
 	// Sweep is the matched column recomputed at several ratios, when one was
 	// asked for. It answers whether a finding depends on the pairing bound.
 	Sweep []RatioAggregate `json:"sweep,omitempty"`
+	// PerCase carries every strategy's numbers on every scored case, so two
+	// runs that landed on different populations can still be compared on the
+	// cases they share — and so a report can be re-analyzed without re-running
+	// the corpus.
+	PerCase []CaseScore `json:"per_case,omitempty"`
 	// Strata holds mean precision per strategy within each file-size quartile.
 	Strata []StratumAggregate `json:"strata"`
 	// Collapse is the symbol-to-file rule the scored cases ran under, carried
@@ -642,6 +647,7 @@ func Summarize(results []CaseResult, k int) Report {
 	}
 
 	rep.CaseSet = fingerprint(results)
+	rep.PerCase = collectPerCase(results)
 	for _, r := range results {
 		if r.Err == nil && r.SizeRatio.Valid() {
 			rep.SizeRatio = r.SizeRatio
@@ -765,15 +771,23 @@ func fingerprint(results []CaseResult) string {
 		if r.Err != nil {
 			continue
 		}
-		ids = append(ids, r.Case.Repo+"@"+r.Case.RewindTo+"/"+r.Case.Contributor)
+		ids = append(ids, caseID(r.Case))
 	}
+	return fingerprintIDs(ids)
+}
+
+// fingerprintIDs hashes a case set. Split out from fingerprint so a report
+// restricted to a subset can recompute its own identity rather than inheriting
+// the identity of the run it came from.
+func fingerprintIDs(ids []string) string {
 	if len(ids) == 0 {
 		return ""
 	}
-	sort.Strings(ids)
+	sorted := append([]string(nil), ids...)
+	sort.Strings(sorted)
 
 	h := sha256.New()
-	for _, id := range ids {
+	for _, id := range sorted {
 		_, _ = h.Write([]byte(id))
 		_, _ = h.Write([]byte{0})
 	}
