@@ -219,3 +219,84 @@ func TestCompareOnTheSameCaseSetDoesNotIntersect(t *testing.T) {
 		t.Errorf("an ordinary comparison reported an intersection of %d cases", c.SharedCases)
 	}
 }
+
+// The shape --cases 5 against --cases 12 produces, which is the comparison
+// this project keeps making. Nothing was measured in one run and not the
+// other, so it is a question about sample size and not about population.
+func TestCompareDetectsANestedCaseSet(t *testing.T) {
+	all := caseIDs("c", 10, 60)
+	small := perCaseReport("aaa", all[:40], 0.53)
+	large := perCaseReport("bbb", all, 0.53)
+
+	c := Compare(small, large)
+	if !c.Comparable || !c.Intersected {
+		t.Fatalf("nested runs did not intersect: %s", c.Why)
+	}
+	if !c.Nested {
+		t.Error("a strict subset was not reported as nested")
+	}
+	if c.DroppedFromA != 0 || c.DroppedFromB != 20 {
+		t.Errorf("got droppedA=%d droppedB=%d, want 0 and 20", c.DroppedFromA, c.DroppedFromB)
+	}
+}
+
+func TestCompareDetectsNestingInEitherDirection(t *testing.T) {
+	all := caseIDs("c", 10, 60)
+	small := perCaseReport("aaa", all[:40], 0.53)
+	large := perCaseReport("bbb", all, 0.53)
+
+	if c := Compare(large, small); !c.Nested || c.DroppedFromB != 0 {
+		t.Errorf("the wider run first was not reported as nested: %+v", c)
+	}
+}
+
+// Two runs that each reached cases the other did not are not nested, and
+// calling them so would understate a real population difference.
+func TestOverlappingButNotNestedIsNotNested(t *testing.T) {
+	all := caseIDs("c", 10, 60)
+	a := perCaseReport("aaa", all[:50], 0.53)
+	b := perCaseReport("bbb", all[10:], 0.53)
+
+	c := Compare(a, b)
+	if !c.Intersected {
+		t.Fatalf("overlapping runs did not intersect: %s", c.Why)
+	}
+	if c.Nested {
+		t.Error("two runs that each reached unique cases were reported as nested")
+	}
+}
+
+// The property the real data showed and the whole intersection rests on:
+// restricting the wider run to the narrower one's cases reproduces the
+// narrower run exactly.
+func TestRestrictingAWiderRunReproducesTheNarrowerOne(t *testing.T) {
+	all := caseIDs("c", 10, 60)
+	narrow := perCaseReport("aaa", all[:40], 0.53)
+	wide := perCaseReport("bbb", all, 0.53)
+
+	keep := map[string]bool{}
+	for _, id := range CaseIDs(narrow) {
+		keep[id] = true
+	}
+	got := RestrictTo(wide, keep)
+	want := RestrictTo(narrow, keep)
+
+	if got.Cases != want.Cases || got.CaseSet != want.CaseSet {
+		t.Fatalf("restricted to %d cases (%s), want %d (%s)",
+			got.Cases, got.CaseSet, want.Cases, want.CaseSet)
+	}
+	byName := map[string]Aggregate{}
+	for _, a := range want.Aggregates {
+		byName[a.Strategy] = a
+	}
+	for _, a := range got.Aggregates {
+		w := byName[a.Strategy]
+		if a.PrecisionA != w.PrecisionA || a.MatchedA != w.MatchedA {
+			t.Errorf("%s: got precision %.6f matched %.6f, want %.6f and %.6f",
+				a.Strategy, a.PrecisionA, a.MatchedA, w.PrecisionA, w.MatchedA)
+		}
+		if a.MatchedCI != w.MatchedCI {
+			t.Errorf("%s: intervals differ after restriction", a.Strategy)
+		}
+	}
+}
