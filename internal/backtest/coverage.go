@@ -30,6 +30,15 @@ type MatchedCoverage struct {
 	// how much of what the contributors actually touched.
 	Ground int `json:"ground"`
 	Paired int `json:"paired"`
+	// Repos is how many distinct repositories contributed a scored case.
+	//
+	// It is the number that actually bounds the file-level measure, and it is
+	// the one nobody looks at. Both the bootstrap interval and the sign test
+	// resample repositories, so a run reaching more cases in the same
+	// repositories has not bought any power — and at file granularity that is
+	// exactly what raising --cases does: seventeen repositories produce pairs
+	// at five cases each and seventeen at twelve.
+	Repos int `json:"repos"`
 }
 
 // Cases is how many the pairing was attempted on.
@@ -53,8 +62,9 @@ func (c MatchedCoverage) Summary() string {
 	if c.Cases() == 0 {
 		return ""
 	}
-	base := fmt.Sprintf("pairing reached %d of %d cases and %d of %d touched items (%.0f%%)",
-		c.Scored, c.Cases(), c.Paired, c.Ground, c.Share()*100)
+	base := fmt.Sprintf("pairing reached %d of %d cases across %d repositories, and %d of %d "+
+		"touched items (%.0f%%)",
+		c.Scored, c.Cases(), c.Repos, c.Paired, c.Ground, c.Share()*100)
 	switch {
 	case c.Scored == c.Cases():
 		return base + "; every case cleared the floor"
@@ -72,8 +82,10 @@ func (c MatchedCoverage) Summary() string {
 // observeCoverage records one case's pairing outcome.
 //
 // ground is the size of the answer set the pairing was offered; pairs is what
-// it built, before the MinPairs floor is applied.
-func (c *MatchedCoverage) observeCoverage(ground, pairs int) {
+// it built, before the MinPairs floor is applied. repos accumulates the
+// distinct repositories that contributed a scored case, and is passed in
+// rather than counted here so MatchedCoverage stays a plain value.
+func (c *MatchedCoverage) observeCoverage(ground, pairs int, repo string, seen map[string]bool) {
 	if ground == 0 {
 		// Nothing to pair. Not a coverage failure — the case had no answer set
 		// at this target, and it is counted elsewhere as unscorable.
@@ -84,6 +96,10 @@ func (c *MatchedCoverage) observeCoverage(ground, pairs int) {
 	switch {
 	case pairs >= MinPairs:
 		c.Scored++
+		if seen != nil && !seen[repo] {
+			seen[repo] = true
+			c.Repos++
+		}
 	case pairs > 0:
 		c.BelowFloor++
 	default:

@@ -594,6 +594,7 @@ func Summarize(results []CaseResult, k int) Report {
 	matchedPairs := map[string]int{}
 	matchedObs := map[string][]Observation{}
 	matchedWins := map[string]float64{}
+	coveredRepos := map[string]bool{}
 	strata := map[stratumKey][]float64{}
 	spreads := map[stratumKey][]float64{}
 	var order []string
@@ -648,7 +649,7 @@ func Summarize(results []CaseResult, k int) Report {
 				matchedWins[s.Strategy] += s.Matched * float64(s.Pairs)
 			}
 		}
-		rep.Coverage.observeCoverage(r.GroundSize, r.BuiltPairs)
+		rep.Coverage.observeCoverage(r.GroundSize, r.BuiltPairs, r.Case.Repo, coveredRepos)
 		for _, ss := range r.Strata {
 			key := stratumKey{ss.Strategy, ss.Stratum}
 			strata[key] = append(strata[key], ss.Precision)
