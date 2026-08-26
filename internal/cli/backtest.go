@@ -643,13 +643,28 @@ func renderConsistency(env *Env, r backtest.Report) {
 		return
 	}
 
+	corrected := rows[0].MatchedRepos.Family > 0
+
 	env.out("")
-	env.out("  %-26s %10s %9s  %s", "strategy", "repos >50%", "sign p", "reading")
-	env.out("  %s", dashes(72))
+	if corrected {
+		env.out("  %-26s %10s %9s %9s  %s",
+			"strategy", "repos >50%", "sign p", "adjusted", "reading")
+		env.out("  %s", dashes(82))
+	} else {
+		env.out("  %-26s %10s %9s  %s", "strategy", "repos >50%", "sign p", "reading")
+		env.out("  %s", dashes(72))
+	}
+
+	var nominal int
 	for _, a := range rows {
 		c := a.MatchedRepos
 		reading := "a coin, repository by repository"
 		switch {
+		case c.NominalOnly():
+			// The most interesting row in the table, because it is the one a
+			// reader would otherwise quote.
+			nominal++
+			reading = env.warn("clears its own p, not a table of " + itoa(c.Family))
 		case !c.Lopsided():
 			// Left as the default. Most rows land here, which is the finding.
 		case c.Above > c.Below:
@@ -657,18 +672,37 @@ func renderConsistency(env *Env, r backtest.Report) {
 		default:
 			reading = env.bad("below chance in most repositories")
 		}
-		env.out("  %-26s %6d / %-3d %9.3f  %s",
-			a.Strategy, c.Above, c.Above+c.Below, c.P, reading)
+		row := fmt.Sprintf("  %-26s %6d / %-3d %9.3f", a.Strategy, c.Above, c.Above+c.Below, c.P)
+		if corrected {
+			row += fmt.Sprintf(" %9.3f", c.PAdjusted)
+		}
+		env.out("%s  %s", row, reading)
 	}
 
-	for _, l := range wrap(
-		"repos >50%: how many repositories the strategy's own cases averaged above "+
-			"chance in, one vote each. sign p is two-sided and exact. A strategy "+
-			"picking up something general wins most repositories by a little; one "+
-			"carried by an outlier wins about half of them by a lot.", 72) {
+	note := "repos >50%: how many repositories the strategy's own cases averaged above " +
+		"chance in, one vote each. sign p is two-sided and exact. A strategy " +
+		"picking up something general wins most repositories by a little; one " +
+		"carried by an outlier wins about half of them by a lot."
+	if corrected {
+		note += fmt.Sprintf(" adjusted: Holm–Bonferroni across the %d strategies scored here, "+
+			"since a table of that size produces about one nominal 0.05 by construction. "+
+			"Readings are made against the adjusted column.", rows[0].MatchedRepos.Family)
+	}
+	for _, l := range wrap(note, 72) {
 		env.out("%s", env.dim("  "+l))
 	}
+	if nominal > 0 {
+		for _, l := range wrap(fmt.Sprintf(
+			"%s clears 0.05 on its own p and not after correction. That is what one "+
+				"table of %d looks like when nothing in it is real — and it is also what a "+
+				"real effect looks like before there is enough evidence for it, which is why "+
+				"it is marked rather than hidden.",
+			plural(nominal, "row"), rows[0].MatchedRepos.Family), 72) {
+			env.out("%s", env.dim("  "+l))
+		}
+	}
 }
+
 
 // renderSweep prints the matched column recomputed at several pairing ratios.
 //
