@@ -206,8 +206,10 @@ defect in this tool, in those words.
 
 ## Where this stands
 
-Phases 0 through 3 are built. Gate A has been run at scale four times and
-**failed every time**. 30 pinned repositories, 114 cases attempted, 85 scored.
+Phases 0 through 3 are built. Gate A has been run at scale eleven times, across
+two disjoint corpora, and **failed every time**. The first corpus is 30 pinned
+repositories, 114 cases attempted, 85 scored; the second is 30 more that
+produced none of the hypotheses tested on it.
 
 | Strategy | precision@10 |
 | --- | --- |
@@ -225,7 +227,7 @@ informative row in the table.
 ![Gate A across 30 repositories: 85 cases scored, 29 discarded, case set 499ac2622deb. Lectio reaches 41.9 percent precision at 10 against largest files at 48.1 percent and a size-proportional draw at 44.1 percent; the verdict reads FAIL. A second table splits precision into file-size quartiles with a size-spread row beneath it, and the reading states that largest files leads every band but by 0.3 points where size is controlled, so the ranking is adding nothing over size.](docs/images/backtest.png)
 
 The first run at scale left two readings open — the ranking is not good enough,
-or the metric rewards size and a size baseline wins by construction. Three more
+or the metric rewards size and a size baseline wins by construction. Ten more
 runs closed that fork, and not in the ranking's favour.
 
 **The harness had a size bias of its own.** The backtest ranks symbols and
