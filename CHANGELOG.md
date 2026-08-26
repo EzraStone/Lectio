@@ -24,6 +24,20 @@ One of the five hypotheses survived, and it was not a weighting:
   3.9 points clear of the full ranking. Churn-only, the surviving candidate,
   is +1.8 over lectio and behind three baselines.
 
+### What the re-render found
+
+Run 10's report replayed through the current analysis, no corpus touched.
+
+- **The binding limit on file-level coverage is the `MinPairs` floor, not the
+  size bound.** Of the 33 cases the pairing did not score, 28 built pairs and
+  fell below the floor and 5 found no twin at all. Loosening from 1.25x to
+  2.00x buys six cases and eight points of leakage on a size control, so the
+  obvious fix is the wrong one.
+- **Churn-only clears the repository sign test at p = 0.035** — 12 of 15
+  repositories, the first strategy in thirteen runs to come in under 0.05. It
+  is one of ten strategies scored on the same data, where about one nominal
+  0.05 is expected, and it does not clear a corrected threshold.
+
 ### Saved reports can be re-read
 
 `lectio backtest --replay report.json` recomputes a stored report's aggregates

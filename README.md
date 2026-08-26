@@ -387,6 +387,12 @@ numbers move with a constant nobody derived and with a case set that changes
 between runs. The declaration-level numbers move with neither: three runs, one
 case-set fingerprint, and a ratio ladder that changes nothing.
 
+**One strategy has ever cleared the repository sign test**, in thirteen runs
+across two corpora: churn-only, 12 of 15 repositories at p = 0.035. It is also
+one of ten strategies scored on the same data, where roughly one nominal 0.05
+is expected by construction, and it does not clear a threshold corrected for
+that. It is not evidence. It is where a next experiment would point.
+
 Gate A is a hard stop and it has now been answered eight ways. Nothing below it
 should be built on this ranking. The likely reading is not that the ranking is
 behind but that the question is wrong: among declarations of equal size,
