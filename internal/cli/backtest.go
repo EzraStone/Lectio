@@ -703,7 +703,6 @@ func renderConsistency(env *Env, r backtest.Report) {
 	}
 }
 
-
 // renderSweep prints the matched column recomputed at several pairing ratios.
 //
 // Read it down a column rather than across a row. A finding that holds at every
