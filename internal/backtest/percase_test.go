@@ -428,3 +428,56 @@ func TestRestrictKeepsAnUnlistedStrategy(t *testing.T) {
 		t.Errorf("the unlisted strategy is %s, want largest files", got.Aggregates[1].Strategy)
 	}
 }
+
+// Reports written before CaseScore carried recall and MRR still have them in
+// their aggregates, and a replay covers exactly the same cases — so the stored
+// means are still true of it. Recomputing them as zero is the wrong answer.
+func TestReplayCarriesRecallFromReportsThatPredateIt(t *testing.T) {
+	ids := caseIDs("c", 10, 40)
+	r := perCaseReport("aaa", ids, 0.53)
+	all := map[string]bool{}
+	for _, id := range ids {
+		all[id] = true
+	}
+	r = RestrictTo(r, all) // no per-case recall or MRR in this fixture
+	for i := range r.Aggregates {
+		r.Aggregates[i].RecallA, r.Aggregates[i].MRR = 0.292, 0.647
+	}
+
+	got, err := Replay(r)
+	if err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	for _, a := range got.Aggregates {
+		if a.RecallA != 0.292 || a.MRR != 0.647 {
+			t.Errorf("%s came back with recall %.3f and MRR %.3f, want the stored 0.292 and 0.647",
+				a.Strategy, a.RecallA, a.MRR)
+		}
+	}
+}
+
+// When the per-case scores do carry recall, that is what wins — a stored mean
+// over a different set of strategies must not override a recomputed one.
+func TestReplayPrefersRecomputedRecall(t *testing.T) {
+	ids := caseIDs("c", 10, 40)
+	r := perCaseReport("aaa", ids, 0.53)
+	for i := range r.PerCase {
+		r.PerCase[i].Recall = 0.31
+	}
+	all := map[string]bool{}
+	for _, id := range ids {
+		all[id] = true
+	}
+	r = RestrictTo(r, all)
+	for i := range r.Aggregates {
+		r.Aggregates[i].RecallA = 0.99
+	}
+
+	got, err := Replay(r)
+	if err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	for _, a := range got.Aggregates {
+		closeTo(t, a.RecallA, 0.31, 1e-9, a.Strategy+" recall")
+	}
+}
