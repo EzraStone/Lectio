@@ -24,6 +24,25 @@ One of the five hypotheses survived, and it was not a weighting:
   3.9 points clear of the full ranking. Churn-only, the surviving candidate,
   is +1.8 over lectio and behind three baselines.
 
+### Saved reports can be re-read
+
+`lectio backtest --replay report.json` recomputes a stored report's aggregates
+with the current code and re-renders it, touching no corpus. Every analysis
+added this week — the intervals, the sign test, the leak check — cost a
+forty-minute pass over a corpus to add a column to numbers already on disk.
+
+- **A replay is a fixed point.** Everything derivable from the per-case scores
+  is recomputed; everything describing the same population — failure counts,
+  coverage, strata, the sweep — is carried, because a replay is not a subset.
+- **The verdict is re-derived, not copied.** It is a reading of the aggregates,
+  and the aggregates have just been recomputed.
+- **A file whose per-case scores disagree with its header is refused.** The
+  fingerprint is over the same case IDs both times, so a mismatch means the
+  file was edited or truncated.
+- Two things a restriction was quietly losing: recall and MRR were not carried
+  per case, so a replay printed two columns of zeroes; and strategy order came
+  from the sort rather than from the table being rebuilt.
+
 ### The declaration measure, doubled
 
 Every declaration-level number came from 75 cases at five per repository. Run

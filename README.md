@@ -405,12 +405,19 @@ make sweep             # the matched column at every pairing ratio
 make sweep-symbols     # the same ladder in declarations, where it moves nothing
 ```
 
-Two reports can be diffed:
+Two reports can be diffed, and a saved one can be re-read:
 
 ```sh
 lectio compare before.json after.json
 lectio compare --cases before.json after.json   # which cases each run reached alone
+lectio backtest --replay report.json            # re-render through the current analysis
 ```
+
+`--replay` exists because the analysis has changed more often than the data.
+Confidence intervals, the sign test over repositories and the pairing-leak
+check all landed after the runs that needed them, and each one cost another
+forty-minute pass over a corpus to add a column to numbers already on disk.
+Reports carry their per-case scores, so they no longer do.
 
 It refuses when the runs are not comparable — different targets, collapse rules
 or size-matching ratios — rather than printing deltas between two things that
