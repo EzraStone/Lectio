@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -205,5 +206,61 @@ func TestCompareSummarizesHowManyDeltasSurvive(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Errorf("summary is missing %q:\n%s", want, got)
 		}
+	}
+}
+
+// perCaseCLIReport builds a report with per-case scores, so the CLI can
+// exercise the intersection path.
+func perCaseCLIReport(caseSet string, first, count int, matched float64) backtest.Report {
+	r := backtest.Report{
+		Schema: 1, K: 10, Cases: count, CaseSet: caseSet,
+		Target: backtest.TargetTouched, Collapse: backtest.CollapseMean,
+		Medians: map[string]float64{},
+	}
+	for i := first; i < first+count; i++ {
+		r.PerCase = append(r.PerCase, backtest.CaseScore{
+			Case:      fmt.Sprintf("repo%02d@rev%d/who%d", i%9, i, i),
+			Repo:      fmt.Sprintf("repo%02d", i%9),
+			Strategy:  "lectio",
+			Precision: 0.40, Matched: matched, Pairs: 10,
+		})
+	}
+	return r
+}
+
+func TestCompareWarnsThatItRecomputed(t *testing.T) {
+	env, out, _ := testEnv()
+	c := backtest.Compare(
+		perCaseCLIReport("aaa", 0, 50, 0.53),
+		perCaseCLIReport("bbb", 10, 50, 0.56),
+	)
+	if !c.Intersected {
+		t.Fatalf("the fixture did not intersect: %s", c.Why)
+	}
+	renderComparison(env, c, "before.json", "after.json")
+	got := strings.Join(strings.Fields(plain(out.String())), " ")
+
+	for _, want := range []string{
+		"recomputed over the 40 cases both reached",
+		"dropping 10 from the first run and 10 from the second",
+		"will not match the totals in either file",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the intersection warning is missing %q:\n%s", want, got)
+		}
+	}
+}
+
+// A direct comparison must not carry the warning, or every ordinary diff reads
+// as a rebuilt one.
+func TestCompareOnMatchingCaseSetsIsSilentAboutIt(t *testing.T) {
+	env, out, _ := testEnv()
+	renderComparison(env, backtest.Compare(
+		comparableReport("abc123", 0.419, 0.52),
+		comparableReport("abc123", 0.421, 0.54),
+	), "before.json", "after.json")
+
+	if got := plain(out.String()); strings.Contains(got, "recomputed over") {
+		t.Errorf("a direct comparison printed the intersection warning:\n%s", got)
 	}
 }
