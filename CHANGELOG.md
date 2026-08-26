@@ -24,6 +24,23 @@ One of the five hypotheses survived, and it was not a weighting:
   3.9 points clear of the full ranking. Churn-only, the surviving candidate,
   is +1.8 over lectio and behind three baselines.
 
+### Runs now check their own pairing
+
+Run 10 found the pairing bound leaking by hand — sweeping the ratio and reading
+a column. That check is now automatic.
+
+- **`PairingLeak`** fires when a strategy whose entire input is how much code
+  there is beats chance on size-matched pairs. It cannot, by construction, so
+  the pairing is letting size through. One-sided: below chance is a different
+  failure with different causes, and the calibrations already cover it.
+- **`SweepLeak`** does better than warn. When a sweep ran, the report names the
+  *loosest* ratio in the ladder at which no size control clears chance, and
+  tells you the flag to re-read the table there.
+- The warning prints after the tables, because it is a statement about how to
+  read them rather than a reason to discard them: precision is unaffected and
+  the ordering usually survives, but every size-correlated row is inflated by a
+  couple of points — enough to turn a null into a finding.
+
 ### The sweep at declaration granularity, where the bound does nothing
 
 Run 10 found the pairing bound leaking two points at file granularity. Run 11
