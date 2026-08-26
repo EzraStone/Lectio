@@ -2,6 +2,10 @@ package cli
 
 import (
 	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -277,5 +281,100 @@ func TestReportStaysQuietWhenNoSignalHurts(t *testing.T) {
 	})
 	if strings.Contains(out.String(), "look here") {
 		t.Errorf("no signal hurt, so nothing should be flagged:\n%s", out.String())
+	}
+}
+
+// --replay re-renders a stored report. A flag that could only have applied to
+// a fresh run would be silently ignored, and a reader who passed
+// --size-ratio 1.1 would reasonably believe they were seeing the table at 1.1x.
+func TestReplayRejectsFlagsItCannotHonour(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "report.json")
+	writeReplayable(t, path)
+
+	for _, args := range [][]string{
+		{"--replay", path, "--size-ratio", "1.1"},
+		{"--replay", path, "--cases", "12"},
+		{"--replay", path, "--target", "symbols"},
+		{"--replay", path, "--ablate"},
+	} {
+		env, _, _ := testEnv()
+		err := runBacktest(context.Background(), env, args)
+		if err == nil {
+			t.Errorf("%v was accepted", args)
+			continue
+		}
+		if !strings.Contains(err.Error(), "would be ignored") {
+			t.Errorf("%v gave %q, which does not explain the refusal", args, err)
+		}
+	}
+}
+
+// --json changes how a stored report is presented, not how it was measured.
+func TestReplayAcceptsPresentationFlags(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "report.json")
+	writeReplayable(t, path)
+
+	env, out, _ := testEnv()
+	if err := runBacktest(context.Background(), env, []string{"--replay", path, "--json"}); err != nil {
+		t.Fatalf("--replay --json: %v", err)
+	}
+	var got backtest.Report
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("the replayed report is not JSON: %v", err)
+	}
+	if got.Cases != 30 {
+		t.Errorf("replayed %d cases, want 30", got.Cases)
+	}
+}
+
+func TestReplayRefusesAReportWithoutPerCase(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "old.json")
+	data, err := json.Marshal(backtest.Report{Schema: 1, Cases: 30, CaseSet: "abc", K: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	env, _, _ := testEnv()
+	err = runBacktest(context.Background(), env, []string{"--replay", path})
+	if err == nil || !strings.Contains(err.Error(), "no per-case scores") {
+		t.Errorf("replaying a report without per-case scores gave %v", err)
+	}
+}
+
+// writeReplayable builds a report a replay can consume: per-case scores whose
+// fingerprint matches the header.
+func writeReplayable(t *testing.T, path string) {
+	t.Helper()
+	r := backtest.Report{
+		Schema: 1, K: 10, Target: backtest.TargetTouched, Collapse: backtest.CollapseMean,
+		Medians: map[string]float64{},
+	}
+	for i := 0; i < 30; i++ {
+		id := fmt.Sprintf("repo%02d@rev%d/who%d", i%10, i, i)
+		r.PerCase = append(r.PerCase,
+			backtest.CaseScore{Case: id, Repo: fmt.Sprintf("repo%02d", i%10),
+				Strategy: "lectio", Precision: 0.4, Matched: 0.53, Pairs: 10},
+			backtest.CaseScore{Case: id, Repo: fmt.Sprintf("repo%02d", i%10),
+				Strategy: "largest files", Precision: 0.48, Matched: 0.51, Pairs: 10},
+		)
+	}
+	keep := map[string]bool{}
+	for _, id := range backtest.CaseIDs(r) {
+		keep[id] = true
+	}
+	r = backtest.RestrictTo(r, keep)
+
+	data, err := json.Marshal(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatal(err)
 	}
 }
