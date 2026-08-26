@@ -153,6 +153,21 @@ func consistencyReport() backtest.Report {
 	return r
 }
 
+// correctedReport is the holdout replay's shape: churn-only clears 0.05 on its
+// own p and lands at 0.35 across a table of ten.
+func correctedReport() backtest.Report {
+	r := matchedReport()
+	for i, c := range []backtest.Consistency{
+		{Above: 10, Below: 5, P: 0.302, PAdjusted: 1.0, Family: 10},   // most recently modified
+		{Above: 12, Below: 3, P: 0.035, PAdjusted: 0.35, Family: 10},  // churn only
+		{Above: 10, Below: 3, P: 0.092, PAdjusted: 0.736, Family: 10}, // lectio
+		{Above: 6, Below: 11, P: 0.332, PAdjusted: 1.0, Family: 10},   // size-proportional draw
+	} {
+		r.Aggregates[i].MatchedRepos = c
+	}
+	return r
+}
+
 func TestConsistencyTableCountsRepositories(t *testing.T) {
 	env, out, _ := testEnv()
 	renderReport(env, consistencyReport())
@@ -239,5 +254,67 @@ func TestReportOmitsCoverageWhenNoneWasRecorded(t *testing.T) {
 	renderReport(env, matchedReport())
 	if got := plain(out.String()); strings.Contains(got, "pairing reached") {
 		t.Errorf("a report with no coverage printed the line:\n%s", got)
+	}
+}
+
+// The row a reader would otherwise quote: significant on its own p, not on a
+// table of ten. Marking it is more useful than either promoting or hiding it.
+func TestConsistencyMarksTheNominalOnlyRow(t *testing.T) {
+	env, out, _ := testEnv()
+	renderReport(env, correctedReport())
+	got := plain(out.String())
+
+	if !strings.Contains(got, "clears its own p, not a table of 10") {
+		t.Errorf("the nominal-only row is not marked:\n%s", got)
+	}
+	if strings.Contains(got, "churn only") &&
+		strings.Contains(got, "churn only") && strings.Contains(got, "above chance in most repositories") {
+		t.Errorf("a row that fails correction was promoted:\n%s", got)
+	}
+}
+
+func TestConsistencyPrintsTheAdjustedColumn(t *testing.T) {
+	env, out, _ := testEnv()
+	renderReport(env, correctedReport())
+	got := strings.Join(strings.Fields(plain(out.String())), " ")
+
+	for _, want := range []string{
+		"sign p adjusted reading",
+		"0.035 0.350",
+		"Holm–Bonferroni across the 10 strategies scored here",
+		"Readings are made against the adjusted column",
+		"1 row clears 0.05 on its own p and not after correction",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q:\n%s", want, got)
+		}
+	}
+}
+
+// A report predating the correction has no adjusted column, and printing an
+// empty one would imply a correction that never happened.
+func TestConsistencyOmitsTheColumnOnUncorrectedReports(t *testing.T) {
+	env, out, _ := testEnv()
+	renderReport(env, consistencyReport())
+	got := strings.Join(strings.Fields(plain(out.String())), " ")
+
+	if strings.Contains(got, "adjusted") {
+		t.Errorf("an uncorrected report printed an adjusted column:\n%s", got)
+	}
+	// And its readings still come from the raw p.
+	if !strings.Contains(got, "above chance in most repositories") {
+		t.Errorf("an uncorrected report lost its readings:\n%s", got)
+	}
+}
+
+// The note about nominal-only rows is only worth printing when there is one.
+func TestConsistencyOmitsTheNominalNoteWhenThereIsNone(t *testing.T) {
+	r := correctedReport()
+	r.Aggregates[1].MatchedRepos = backtest.Consistency{Above: 12, Below: 3, P: 0.35, PAdjusted: 1.0, Family: 10}
+
+	env, out, _ := testEnv()
+	renderReport(env, r)
+	if got := plain(out.String()); strings.Contains(got, "clears 0.05 on its own p") {
+		t.Errorf("the nominal note printed with no nominal-only row:\n%s", got)
 	}
 }
