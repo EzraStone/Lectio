@@ -18,6 +18,16 @@ type Comparison struct {
 	// other.
 	OnlyInA []string
 	OnlyInB []string
+	// Intersected is true when the two runs scored different case sets and the
+	// comparison was rebuilt over the cases they share.
+	Intersected bool
+	// SharedCases, DroppedFromA and DroppedFromB describe that rebuild. They
+	// are the first thing to read on an intersected comparison: a diff over 40
+	// shared cases out of 161 and 74 is a different object from a diff over
+	// 150 of 161.
+	SharedCases  int
+	DroppedFromA int
+	DroppedFromB int
 }
 
 // ComparisonRow is one strategy's before and after.
@@ -64,15 +74,43 @@ func (r ComparisonRow) Decisive() bool {
 func Compare(a, b Report) Comparison {
 	var c Comparison
 
+	// Before anything else: if the two runs landed on different populations
+	// but both carry per-case numbers, rebuild them over the cases they share.
+	// That is a real comparison where refusing outright is merely a correct
+	// one, and after ten runs the same command has never twice produced the
+	// same case set.
+	var intersection struct {
+		shared, onlyA, onlyB int
+		applied              bool
+	}
+	if a.CaseSet != "" && b.CaseSet != "" && a.CaseSet != b.CaseSet {
+		shared, onlyA, onlyB := SharedCases(a, b)
+		if len(shared) >= MinSharedCases {
+			keep := make(map[string]bool, len(shared))
+			for _, id := range shared {
+				keep[id] = true
+			}
+			a, b = RestrictTo(a, keep), RestrictTo(b, keep)
+			intersection.shared, intersection.onlyA, intersection.onlyB = len(shared), onlyA, onlyB
+			intersection.applied = true
+		}
+	}
+
 	switch {
 	case a.CaseSet == "" || b.CaseSet == "":
 		c.Why = "one of the runs scored no cases"
 	case a.CaseSet != b.CaseSet:
+		shared, _, _ := SharedCases(a, b)
+		detail := fmt.Sprintf("they share %d", len(shared))
+		if len(a.PerCase) == 0 || len(b.PerCase) == 0 {
+			detail = "at least one predates per-case reporting, so the overlap cannot be computed"
+		}
 		c.Why = fmt.Sprintf(
-			"different case sets (%s vs %s) — %d cases against %d. Which cases survive "+
-				"depends on whether each revision's dependencies resolved, so these two runs "+
-				"measured different populations and the deltas would not mean anything",
-			a.CaseSet, b.CaseSet, a.Cases, b.Cases)
+			"different case sets (%s vs %s) — %d cases against %d, and %s, below the %d "+
+				"needed to compare on the overlap. Which cases survive depends on whether each "+
+				"revision's dependencies resolved, so these two runs measured different "+
+				"populations and the deltas would not mean anything",
+			a.CaseSet, b.CaseSet, a.Cases, b.Cases, detail, MinSharedCases)
 	case a.Target != b.Target:
 		c.Why = fmt.Sprintf("different targets (%s vs %s) — precision over declarations is "+
 			"not comparable with precision over file paths", a.Target, b.Target)
@@ -90,6 +128,12 @@ func Compare(a, b Report) Comparison {
 			a.SizeRatio.Or(MaxSizeRatio), b.SizeRatio.Or(MaxSizeRatio))
 	default:
 		c.Comparable = true
+	}
+	if intersection.applied {
+		c.Intersected = true
+		c.SharedCases = intersection.shared
+		c.DroppedFromA = intersection.onlyA
+		c.DroppedFromB = intersection.onlyB
 	}
 
 	inA := byStrategy(a)
