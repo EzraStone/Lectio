@@ -232,14 +232,14 @@ func TestConsistencyTableIsAbsentWithoutRepositories(t *testing.T) {
 func TestReportStatesMatchedCoverage(t *testing.T) {
 	r := matchedReport()
 	r.Coverage = backtest.MatchedCoverage{
-		Scored: 41, BelowFloor: 6, Unpairable: 27, Ground: 1540, Paired: 793,
+		Scored: 41, BelowFloor: 6, Unpairable: 27, Ground: 1540, Paired: 793, Repos: 17,
 	}
 	env, out, _ := testEnv()
 	renderReport(env, r)
 	got := strings.Join(strings.Fields(plain(out.String())), " ")
 
 	for _, want := range []string{
-		"pairing reached 41 of 74 cases",
+		"pairing reached 41 of 74 cases across 17 repositories",
 		"793 of 1540 touched items",
 		"found no size-matched twin at all",
 	} {

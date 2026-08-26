@@ -1,14 +1,28 @@
 package backtest
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
 
+// coverageOf records observations as (ground, pairs), one per repository, so
+// the repository count matches the scored count unless a test says otherwise.
 func coverageOf(observations ...[2]int) MatchedCoverage {
 	var c MatchedCoverage
+	seen := map[string]bool{}
+	for i, o := range observations {
+		c.observeCoverage(o[0], o[1], fmt.Sprintf("repo%02d", i), seen)
+	}
+	return c
+}
+
+// coverageIn records every observation against one repository.
+func coverageIn(repo string, observations ...[2]int) MatchedCoverage {
+	var c MatchedCoverage
+	seen := map[string]bool{}
 	for _, o := range observations {
-		c.observeCoverage(o[0], o[1])
+		c.observeCoverage(o[0], o[1], repo, seen)
 	}
 	return c
 }
@@ -92,16 +106,50 @@ func TestCoverageSummaryOnNothing(t *testing.T) {
 // the denominator unmissable.
 func TestCoverageSummaryStatesBothDenominators(t *testing.T) {
 	var c MatchedCoverage
+	seen := map[string]bool{}
 	for i := 0; i < 33; i++ {
-		c.observeCoverage(20, 10)
+		c.observeCoverage(20, 10, fmt.Sprintf("repo%02d", i%17), seen)
 	}
 	for i := 0; i < 44; i++ {
-		c.observeCoverage(20, 0)
+		c.observeCoverage(20, 0, fmt.Sprintf("repo%02d", i%17), seen)
 	}
 	got := c.Summary()
-	for _, want := range []string{"33 of 77 cases", "330 of 1540 touched items", "(21%)"} {
+	for _, want := range []string{
+		"33 of 77 cases across 17 repositories", "330 of 1540 touched items", "(21%)",
+	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("summary is missing %q:\n%s", want, got)
 		}
+	}
+}
+
+// The repository count is what bounds the file-level measure, and it is the
+// number raising --cases does not move: more cases in the same repositories
+// buy pairs and no power, because both the bootstrap and the sign test
+// resample repositories.
+func TestCoverageCountsRepositoriesNotCases(t *testing.T) {
+	one := coverageIn("only-repo", [2]int{20, 12}, [2]int{20, 12}, [2]int{20, 12}, [2]int{20, 12})
+	if one.Scored != 4 {
+		t.Fatalf("scored %d cases, want 4", one.Scored)
+	}
+	if one.Repos != 1 {
+		t.Errorf("four cases from one repository counted %d repositories", one.Repos)
+	}
+
+	spread := coverageOf([2]int{20, 12}, [2]int{20, 12}, [2]int{20, 12}, [2]int{20, 12})
+	if spread.Repos != 4 {
+		t.Errorf("four cases from four repositories counted %d", spread.Repos)
+	}
+}
+
+// A repository whose only cases fell below the floor contributed nothing to
+// the interval or the sign test, and must not be counted as though it had.
+func TestCoverageCountsOnlyRepositoriesThatScored(t *testing.T) {
+	c := coverageIn("thin", [2]int{20, 2}, [2]int{20, 3})
+	if c.Repos != 0 {
+		t.Errorf("a repository with no scored case counted %d", c.Repos)
+	}
+	if c.BelowFloor != 2 {
+		t.Errorf("got %d below the floor, want 2", c.BelowFloor)
 	}
 }
