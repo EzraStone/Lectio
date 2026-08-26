@@ -138,3 +138,64 @@ func TestNoSweepTableWithoutASweep(t *testing.T) {
 		t.Errorf("the matched footnote stopped naming the pairing ratio:\n%s", got)
 	}
 }
+
+// leakingReport is run 10's file-granularity shape: a size control clear of
+// chance at 1.25x, and a sweep whose 1.10x column is clean.
+func leakingReport() backtest.Report {
+	r := matchedReport()
+	r.SizeRatio = 1.25
+	iv := func(lo, hi float64) backtest.Interval {
+		return backtest.Interval{Lo: lo, Hi: hi, Level: 0.95, Units: 17}
+	}
+	r.Aggregates = append(r.Aggregates, backtest.Aggregate{
+		Strategy: "largest files", PrecisionA: 0.481, MatchedA: 0.529,
+		MatchedCI: backtest.Interval{Point: 0.529, Lo: 0.502, Hi: 0.562, Level: 0.95, Units: 17},
+	})
+	r.Sweep = []backtest.RatioAggregate{
+		{Ratio: 1.10, Strategy: "largest files", Matched: 0.505, Cases: 36, Pairs: 696, CI: iv(0.462, 0.548)},
+		{Ratio: 1.25, Strategy: "largest files", Matched: 0.529, Cases: 41, Pairs: 793, CI: iv(0.502, 0.562)},
+		{Ratio: 2.00, Strategy: "largest files", Matched: 0.587, Cases: 47, Pairs: 916, CI: iv(0.551, 0.622)},
+	}
+	return r
+}
+
+func TestReportWarnsWhenThePairingLeaks(t *testing.T) {
+	env, out, _ := testEnv()
+	renderReport(env, leakingReport())
+	got := strings.Join(strings.Fields(plain(out.String())), " ")
+
+	for _, want := range []string{
+		"largest files at 52.9%",
+		"cannot tell two candidates of the same size apart",
+		"pairing at 1.25x is still letting size through",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the leak warning is missing %q:\n%s", want, got)
+		}
+	}
+}
+
+// Warning is the minimum. When a sweep ran, the report can name a bound that
+// works instead of only condemning the one that was used.
+func TestReportNamesACleanRatioWhenTheSweepFoundOne(t *testing.T) {
+	env, out, _ := testEnv()
+	renderReport(env, leakingReport())
+	got := strings.Join(strings.Fields(plain(out.String())), " ")
+
+	for _, want := range []string{
+		"clean at 1.10x",
+		"--size-ratio 1.10",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the report did not name the clean ratio %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestReportIsSilentWhenThePairingHolds(t *testing.T) {
+	env, out, _ := testEnv()
+	renderReport(env, sweepReport())
+	if got := plain(out.String()); strings.Contains(got, "letting size through") {
+		t.Errorf("a clean run printed the leak warning:\n%s", got)
+	}
+}
