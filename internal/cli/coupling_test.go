@@ -1,10 +1,12 @@
 package cli
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/EzraStone/Lectio/internal/backtest"
 	"github.com/EzraStone/Lectio/internal/core"
 	"github.com/EzraStone/Lectio/internal/index"
 )
@@ -94,4 +96,112 @@ func TestWrapHandlesEmptyInput(t *testing.T) {
 	if got := wrap("", 40); len(got) != 1 || got[0] != "" {
 		t.Errorf("wrap(\"\") = %q", got)
 	}
+}
+
+// couplingRun builds repositories whose fix rate is a fixed multiple of their
+// base rate, so the pooled lift is known before the test runs.
+func couplingRun(n int, base, mult float64) []backtest.RepoCoupling {
+	out := make([]backtest.RepoCoupling, 0, n)
+	for i := 0; i < n; i++ {
+		fixes := 100
+		hit := int(base * mult * float64(fixes))
+		out = append(out, backtest.RepoCoupling{
+			Repo: fmt.Sprintf("owner/repo%02d", i),
+			CouplingResult: backtest.CouplingResult{
+				Pairs: 50, CoupledFiles: 20, NewcomerFixes: fixes, FixesOnCoupled: hit,
+				BaseRate: base, FixRate: float64(hit) / float64(fixes), Lift: mult,
+				Verdict:  "no relationship",
+			},
+		})
+	}
+	return out
+}
+
+func TestCouplingReportPrintsItsInterval(t *testing.T) {
+	env, out, _ := testEnv()
+	rs := couplingRun(20, 0.5, 1.02)
+	renderCoupling(env, rs, backtest.PooledCoupling(rs))
+	got := strings.Join(strings.Fields(plain(out.String())), " ")
+
+	if !strings.Contains(got, "95% interval") {
+		t.Errorf("no interval on a 20-repository run:\n%s", got)
+	}
+	if !strings.Contains(got, "bootstrapped over 20 repositories") {
+		t.Errorf("the interval does not say what it resampled:\n%s", got)
+	}
+}
+
+// The half a null result usually leaves out: what the corpus could have seen.
+func TestCouplingReportStatesWhatItCouldHaveDetected(t *testing.T) {
+	env, out, _ := testEnv()
+	// Repositories that disagree, so the interval is wide and contains 1.0.
+	rs := couplingRun(10, 0.3, 2.2)
+	for i, r := range couplingRun(10, 0.8, 0.6) {
+		r.Repo = fmt.Sprintf("owner/low%02d", i)
+		rs = append(rs, r)
+	}
+	renderCoupling(env, rs, backtest.PooledCoupling(rs))
+	got := strings.Join(strings.Fields(plain(out.String())), " ")
+
+	for _, want := range []string{
+		"The interval contains 1.0",
+		"has not shown a relationship in either direction",
+		"would have landed outside it",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q:\n%s", want, got)
+		}
+	}
+}
+
+// Below the cluster floor there is no interval, and the report says so rather
+// than printing a range it cannot support.
+func TestCouplingReportSaysWhenItCannotResample(t *testing.T) {
+	env, out, _ := testEnv()
+	rs := couplingRun(4, 0.5, 1.4)
+	renderCoupling(env, rs, backtest.PooledCoupling(rs))
+	got := strings.Join(strings.Fields(plain(out.String())), " ")
+
+	if !strings.Contains(got, "No interval: 4 repositories cleared both sample-size guards, fewer than the 8") {
+		t.Errorf("a four-repository run did not say why it has no interval:\n%s", got)
+	}
+	if strings.Contains(got, "95% interval") {
+		t.Errorf("a four-repository run printed an interval:\n%s", got)
+	}
+}
+
+// A pooled lift of 1.6 on an interval running down to 0.8 is not a positive
+// result, and colouring it green is how this project would make the same
+// mistake a fourth time.
+func TestCouplingReadingFollowsTheIntervalNotThePoint(t *testing.T) {
+	env, out, _ := testEnv()
+	env.Color = true
+	// Ten repositories, half at lift 3.5 and half at 0.3. Pooling on counts
+	// gives 1.9 — well past the old rule's 1.5 — while resampling ten of them
+	// reaches draws whose lift is under 1.0, so the interval contains it.
+	rs := couplingRun(5, 0.2, 3.5)
+	for i, r := range couplingRun(5, 0.2, 0.3) {
+		r.Repo = fmt.Sprintf("owner/low%02d", i)
+		rs = append(rs, r)
+	}
+	pooled := backtest.PooledCoupling(rs)
+	if pooled.Lift < 1.5 {
+		t.Fatalf("the fixture's pooled lift is %.2f; it needs to clear the old rule's 1.5", pooled.Lift)
+	}
+	iv := backtest.BootstrapCoupling(rs, backtest.DefaultLevel, backtest.BootstrapIters, couplingSeed)
+	if iv.ExcludesNoRelationship() {
+		t.Fatalf("the fixture's interval [%.2f, %.2f] does not contain 1.0", iv.Lo, iv.Hi)
+	}
+	renderCoupling(env, rs, pooled)
+
+	for _, line := range strings.Split(out.String(), "\n") {
+		if !strings.Contains(plain(line), "reading:") {
+			continue
+		}
+		if strings.Contains(line, ansiGreen) {
+			t.Errorf("a high pooled lift on an interval containing 1.0 was coloured green:\n%q", line)
+		}
+		return
+	}
+	t.Error("no reading line in the coupling report")
 }
