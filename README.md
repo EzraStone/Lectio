@@ -371,15 +371,24 @@ make corpus-holdout    # the second corpus, disjoint from the first
 make holdout           # the named candidates, on repositories that did not produce them
 ```
 
-Two reports from the same case set can be diffed:
+Two reports can be diffed:
 
 ```sh
 lectio compare before.json after.json
+lectio compare --cases before.json after.json   # which cases each run reached alone
 ```
 
-It refuses when the runs are not comparable — different case sets, targets,
-collapse rules or size-matching ratios — rather than printing deltas between
-two different populations, because the deltas are the part people quote.
+It refuses when the runs are not comparable — different targets, collapse rules
+or size-matching ratios — rather than printing deltas between two things that
+were never the same measurement.
+
+Different *case sets* are the common one, and refusing outright turned out to be
+correct and useless: which cases survive depends on whether each rewound
+revision's dependencies resolved, so two runs of the same command can land on
+different populations. Reports now carry per-case numbers, so when that happens
+the comparison is rebuilt over the cases both runs reached and says so above
+the table. Below twenty shared cases it still refuses, because a diff over six
+is worse than declining.
 
 The corpus is [`corpus/gate-a.json`](corpus/gate-a.json): thirty Go
 repositories pinned to specific commits, each with a note on why it is there —
