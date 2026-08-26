@@ -24,6 +24,29 @@ One of the five hypotheses survived, and it was not a weighting:
   3.9 points clear of the full ranking. Churn-only, the surviving candidate,
   is +1.8 over lectio and behind three baselines.
 
+### Two runs can now be compared even when they scored different cases
+
+`compare` refused across two case sets, which was correct and a dead end: after
+ten runs the same command had never twice produced the same one, so the tool
+that exists to diff two runs could rarely diff any two runs anyone had.
+
+- **Reports carry per-case numbers.** Every strategy's precision, matched
+  accuracy and pair count on every scored case, keyed by repository, rewind
+  point and contributor. It also makes a report re-analyzable without
+  re-running the corpus, which is worth the kilobytes on its own.
+- **Different case sets are intersected, not refused.** The comparison is
+  rebuilt over the cases both runs reached, and says so above the table since
+  its rows then match the totals in neither input file. Below twenty shared
+  cases it still refuses.
+- **A restriction drops what it cannot recompute.** Strata, the sweep and the
+  verdict do not survive being restricted to a subset — a verdict computed over
+  161 cases carried onto 74 would look exactly like a real claim about those 74.
+- **`compare --cases`** lists which cases each run reached alone, grouped by
+  repository and heaviest first, so drift concentrated in two repositories'
+  dependencies reads differently from drift spread across the corpus.
+- **`compare --json` emitted Go field names.** The `Comparison` type had no
+  JSON tags.
+
 ### The pairing bound was leaking, and the sweep caught it
 
 `--sweep-ratio` runs the matched column at every ratio in one pass. The first
