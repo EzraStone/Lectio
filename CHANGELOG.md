@@ -24,6 +24,33 @@ One of the five hypotheses survived, and it was not a weighting:
   3.9 points clear of the full ranking. Churn-only, the surviving candidate,
   is +1.8 over lectio and behind three baselines.
 
+### The declaration measure, doubled
+
+Every declaration-level number came from 75 cases at five per repository. Run
+12 is the same command at twelve — 142 cases, 3,823 pairs from 115, across 25
+repositories.
+
+- **Not one interval excludes chance, and not one sign test falls below
+  p = 0.42.** The intervals narrow as they should and nothing crosses out of
+  chance as they do, which is what a result hiding under the noise at 75 cases
+  would have done.
+- **The narrower run is a strict subset, and every shared case scores
+  identically to the decimal.** Case selection is deterministic, a case's score
+  does not depend on what else was in the run, and restricting the wider run to
+  the shared cases reproduces the narrower one exactly.
+- **`compare` distinguishes nested case sets from overlapping ones.** The
+  write-up had been calling `--cases 5` against `--cases 12` "a larger sample
+  rather than an independent one" for four runs without being able to check it.
+
+### Coverage says which limit stopped the pairing
+
+"33 of 77 cases" invites the reading that the corpus is too small, which is only
+sometimes true and is the more expensive of the two things to fix. Reports now
+split it: cases that built pairs but fell below `MinPairs` are a thin corpus,
+cases whose touched files found no size-matched twin at all are a tight bound,
+and `--size-ratio` moves only the second. The line also states coverage in
+touched items rather than only in cases, which is the sharper denominator.
+
 ### Runs now check their own pairing
 
 Run 10 found the pairing bound leaking by hand — sweeping the ratio and reading

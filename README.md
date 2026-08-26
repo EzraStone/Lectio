@@ -372,6 +372,12 @@ graph, a PageRank, twelve months of history, four baselines and a size control
 — and among declarations of exactly the same size, none of them can tell which
 one a newcomer touched.
 
+Doubling the sample does not disturb it. At twelve cases per repository —
+**3,823 pairs from 115 cases across 25 repositories** — not one strategy's
+interval excludes chance, and not one sign test over repositories falls below
+p = 0.42. The intervals narrow as they should and nothing crosses out of chance
+as they do, which is what a result hiding under the noise would have done.
+
 The two granularities therefore do not deserve equal confidence. The file-level
 numbers move with a constant nobody derived and with a case set that changes
 between runs. The declaration-level numbers move with neither: three runs, one
