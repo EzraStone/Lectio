@@ -1,7 +1,7 @@
 BINARY := lectio
 PKG    := ./...
 
-.PHONY: build test vet fmt fmt-check tidy clean install ci corpus corpus-holdout gate-a gate-a-corrected gate-a-symbols coupling holdout
+.PHONY: build test vet fmt fmt-check tidy clean install ci corpus corpus-holdout gate-a gate-a-corrected gate-a-symbols coupling holdout sweep sweep-symbols
 
 build:
 	go build -o bin/$(BINARY) ./cmd/lectio
@@ -70,3 +70,21 @@ clean:
 # prior every file-level measure carries.
 gate-a-symbols: build
 	./bin/$(BINARY) backtest --corpus corpus/gate-a.json --ablate --target symbols -v
+
+# The matched column at every pairing ratio. Costs one run rather than five:
+# indexing a rewound revision is minutes and does not depend on the ratio, so
+# only the pairing is repeated.
+#
+# Read the output down a column. A result that appears only at the loose end of
+# the ladder is a result about the bound, not about the corpus — which is what
+# this found at file granularity, where largest-files walks 50.5% to 58.7%.
+sweep: build
+	./bin/$(BINARY) backtest --corpus corpus/gate-a-holdout.json --candidates \
+		--cases 5 --sweep-ratio -v
+
+# The same ladder at declaration granularity, where it moves nothing.
+# Declarations are dense in size space and files are not, so the exact-match
+# column here rests on 2,496 pairs where the file-level one rests on 171.
+sweep-symbols: build
+	./bin/$(BINARY) backtest --corpus corpus/gate-a.json --target symbols \
+		--cases 5 --sweep-ratio -v
