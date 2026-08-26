@@ -19,11 +19,20 @@ type MatchedPair struct {
 // MaxSizeRatio bounds how unequal a matched pair may be.
 //
 // A pair matched at 1.25x still leaves a sliver of size information, and a
-// tighter bound discards pairs in repositories where sizes are sparse. This is
-// the loosest ratio at which the residual advantage is smaller than the effect
-// the measure is looking for: a strategy that knew nothing but size would win
-// such a pair barely above half the time, while a strategy that knew something
-// real should win well clear of it.
+// tighter bound discards pairs in repositories where sizes are sparse. The
+// original reasoning was that 1.25x is the loosest ratio at which the residual
+// advantage is smaller than the effect the measure is looking for.
+//
+// That reasoning was never checked, and at file granularity it is wrong: swept
+// across the ladder, a strategy reading nothing but file length walks 50.5% at
+// 1.10x to 58.7% at 2.00x, and at 1.25x it scores 52.9% with an interval clear
+// of chance. Two points of the sliver are real. At declaration granularity the
+// same sweep moves nothing, because declarations are dense in size space and
+// the twin found at 2.00x was already an exact match.
+//
+// So this constant is a default rather than a finding. Use --sweep-ratio to
+// see how much of a table moves with it, and PairingLeak to be told when a run
+// is leaking without having to look.
 const MaxSizeRatio = 1.25
 
 // SizeRatio is the ratio a particular run pairs at, so the choice can be
@@ -59,13 +68,21 @@ func (r SizeRatio) Or(def SizeRatio) SizeRatio {
 // How much of the corpus clears it depends sharply on granularity, and the
 // difference is a real limit on what the file-level number can say:
 //
-//	symbols   67 of 75 cases   2,891 pairs
-//	files     33 of 77 cases     426 pairs
+//	symbols, 5 per repo     67 of  75 cases   2,891 pairs   25 repositories
+//	symbols, 12 per repo   115 of 142 cases   3,823 pairs   25 repositories
+//	files,   5 per repo      41 of  74 cases     793 pairs   17 repositories
+//	files,  12 per repo      60 of 161 cases     707 pairs   17 repositories
 //
 // A repository has tens of files where it has thousands of declarations, so
-// exact size matches are far rarer at file level and most cases cannot be
-// paired at all. Any file-granularity result here rests on under half the
-// corpus, and that belongs beside the number rather than in a footnote.
+// exact size matches are far rarer at file level: most cases cannot be paired
+// at all, and widening the corpus adds cases without adding repositories to
+// resample. Any file-granularity result here rests on a third of the cases and
+// seventeen repositories, and that belongs beside the number rather than in a
+// footnote — the intervals it produces are near ±5 points.
+//
+// MatchedCoverage records which of the two limits is binding on a given run:
+// a case that built four pairs is a thin corpus, a case that built none is a
+// tight bound, and only the second moves with --size-ratio.
 const MinPairs = 5
 
 // MatchedChance is what a strategy scores when it knows nothing the pairing
