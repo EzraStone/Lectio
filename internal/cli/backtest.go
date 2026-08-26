@@ -339,6 +339,14 @@ func renderReport(env *Env, r backtest.Report) {
 			r.SizeRatio.Or(backtest.MaxSizeRatio)), 72) {
 			env.out("%s", env.dim("  "+l))
 		}
+		if summary := r.Coverage.Summary(); summary != "" {
+			// The coverage line sits directly under the matched footnote
+			// because it is the denominator that footnote is quoting, stated
+			// in touched items rather than only in cases.
+			for _, l := range wrap(summary, 72) {
+				env.out("%s", env.dim("  "+l))
+			}
+		}
 		renderConsistency(env, r)
 		renderSweep(env, r)
 		renderLeak(env, r)

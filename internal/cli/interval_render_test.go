@@ -210,3 +210,33 @@ func TestConsistencyTableIsAbsentWithoutRepositories(t *testing.T) {
 		t.Errorf("a run with no repository counts printed the consistency table:\n%s", got)
 	}
 }
+
+// The coverage line is the denominator every matched-pair number is quoted
+// against, and it says which of the two limits is binding.
+func TestReportStatesMatchedCoverage(t *testing.T) {
+	r := matchedReport()
+	r.Coverage = backtest.MatchedCoverage{
+		Scored: 41, BelowFloor: 6, Unpairable: 27, Ground: 1540, Paired: 793,
+	}
+	env, out, _ := testEnv()
+	renderReport(env, r)
+	got := strings.Join(strings.Fields(plain(out.String())), " ")
+
+	for _, want := range []string{
+		"pairing reached 41 of 74 cases",
+		"793 of 1540 touched items",
+		"found no size-matched twin at all",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the coverage line is missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestReportOmitsCoverageWhenNoneWasRecorded(t *testing.T) {
+	env, out, _ := testEnv()
+	renderReport(env, matchedReport())
+	if got := plain(out.String()); strings.Contains(got, "pairing reached") {
+		t.Errorf("a report with no coverage printed the line:\n%s", got)
+	}
+}
