@@ -28,6 +28,14 @@ type Consistency struct {
 	// P is the two-sided sign-test probability of a split at least this
 	// lopsided under the null that each repository is a coin.
 	P float64 `json:"p"`
+	// PAdjusted is P after Holm–Bonferroni correction across every strategy
+	// the report scored. Zero means no correction was applied — either the
+	// report predates it, or there was only one test, and an exact binomial
+	// p is never zero so the two cannot be confused.
+	PAdjusted float64 `json:"p_adjusted,omitzero"`
+	// Family is how many tests the correction was over. Reported because an
+	// adjusted p is meaningless without it.
+	Family int `json:"family,omitzero"`
 }
 
 // Repos is how many repositories contributed.
@@ -42,8 +50,31 @@ const ConsistencyLevel = 0.05
 
 // Lopsided reports whether the split is unlikely enough to be worth reading as
 // a pattern rather than as a coin.
+//
+// Against the adjusted p where one exists. A report showing ten strategies
+// produces about one nominal 0.05 by construction, so reading each row against
+// the raw threshold means finding a pattern in most reports that contain none.
 func (c Consistency) Lopsided() bool {
-	return c.Above+c.Below > 0 && c.P < ConsistencyLevel
+	if c.Above+c.Below == 0 {
+		return false
+	}
+	return c.Effective() < ConsistencyLevel
+}
+
+// Effective is the p a reading should be made against: the adjusted one when
+// the report computed it, the raw one otherwise.
+func (c Consistency) Effective() float64 {
+	if c.PAdjusted > 0 {
+		return c.PAdjusted
+	}
+	return c.P
+}
+
+// NominalOnly marks a split that clears the threshold on its own p and not
+// after correction. It is the most interesting row in a table precisely
+// because it is the one a reader would otherwise quote.
+func (c Consistency) NominalOnly() bool {
+	return c.PAdjusted > 0 && c.P < ConsistencyLevel && c.PAdjusted >= ConsistencyLevel
 }
 
 // RepoConsistency counts how many repositories a strategy beat chance in.

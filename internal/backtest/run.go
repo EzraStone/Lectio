@@ -689,6 +689,10 @@ func Summarize(results []CaseResult, k int) Report {
 			rep.MatchedPairs = n
 		}
 	}
+	// After every aggregate exists, because the correction is over the family
+	// the report prints rather than over any one row.
+	applyHolm(rep.Aggregates)
+
 	rep.Sweep = summarizeRatios(results, order)
 
 	// Strategy order follows the main table; band order is smallest to
