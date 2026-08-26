@@ -223,6 +223,9 @@ Changes to these are the ones that need the most thought:
 | `SymbolBaselines` translation | Restating it after seeing a score is how the gate gets argued past |
 | `nearestUnused` tie-breaking | Any correlation with ID order silently biases every strategy at once |
 | `Baselines()` vs `Controls()` | A control that could fail the gate is a fifth baseline added after the fact |
+| `MinClusters` | A bootstrap over four repositories draws from 35 resamples and can come out narrow, which reads as a finding |
+| `sizeOnlyStrategies` | It is the list `PairingLeak` checks; dropping a name from it removes the tripwire, not the leak |
+| `RestrictTo`'s dropped fields | A verdict or a sweep carried onto a subset is a claim about a population that was never scored |
 
 Several of these have tests written specifically as tripwires — a test named
 after the failure it prevents rather than the function it exercises. Those are
@@ -264,9 +267,13 @@ make gate-a            # backtest with per-signal ablation
 make gate-a-corrected  # graded against files newcomers had to fix or revert
 make gate-a-symbols    # graded in declarations rather than file paths
 make coupling          # the second backtest, as lift rather than precision
+make corpus-holdout    # the second corpus, disjoint from the first
+make holdout           # the named candidates, on repositories that did not produce them
+make sweep             # the matched column at every pairing ratio
+make sweep-symbols     # the same ladder in declarations, where it moves nothing
 ```
 
-Three properties of the harness are worth knowing before trusting its output.
+Four properties of the harness are worth knowing before trusting its output.
 
 **Degraded cases are discarded, not scored.** When a rewound revision fails to
 type-check, the damage lands on one side only: lectio loses centrality (a
@@ -286,6 +293,14 @@ check decides what is still worth scoring.
 leave-one-out costs what a plain run costs. Only the four baselines decide the
 verdict — a variant outscoring the default is the diagnosis the ablation exists
 to produce, not a gate failure.
+
+**The case set is not stable at file granularity.** Which cases survive depends
+on whether each rewound revision's dependencies resolved, so the same command
+has produced 85 cases and 77, 138 and 161. Every report carries a fingerprint
+of exactly which cases it scored, and two totals are only directly comparable
+when it matches. The declaration targets do not have this problem — they have
+produced `0d1e81666c55` on every run — and `lectio compare` rebuilds over the
+shared cases when the fingerprints differ.
 
 ### The symbol-to-file collapse
 
