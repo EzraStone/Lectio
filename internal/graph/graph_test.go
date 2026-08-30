@@ -99,3 +99,56 @@ func TestAddIsIdempotent(t *testing.T) {
 		t.Errorf("N() = %d, want 1", g.N())
 	}
 }
+
+// index.View is a plain struct with exported fields, assembled by hand in
+// tests and by the backtest's fixtures. A View whose Calls is nil is an
+// ordinary thing to construct, and rank.Rank walking into it should report an
+// empty graph rather than crash the process — which it did, from
+// HiddenCoupling.Compute, until these accessors tolerated a nil receiver.
+func TestReadOnlyAccessorsToleratANilGraph(t *testing.T) {
+	var g *Graph
+
+	if got := g.N(); got != 0 {
+		t.Errorf("N() = %d on a nil graph, want 0", got)
+	}
+	if got := g.Edges(); got != 0 {
+		t.Errorf("Edges() = %d on a nil graph, want 0", got)
+	}
+	if got := g.IDs(); got != nil {
+		t.Errorf("IDs() = %v on a nil graph, want nil", got)
+	}
+	if i, ok := g.Index("anything"); ok || i != 0 {
+		t.Errorf("Index() = %d, %v on a nil graph, want 0, false", i, ok)
+	}
+	if g.Has("anything") {
+		t.Error("Has() reported a node on a nil graph")
+	}
+}
+
+// The mutating methods deliberately do not. Adding to a nil graph is a
+// programming error with no sensible answer, and silently discarding the edge
+// would be worse than the panic.
+func TestAddingToANilGraphStillPanics(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Error("AddEdge on a nil graph did not panic")
+		}
+	}()
+	var g *Graph
+	g.AddEdge("a", "b")
+}
+
+// An empty graph and a nil one answer the same way, which is what makes the
+// nil case safe to rely on rather than merely non-fatal.
+func TestANilGraphAnswersLikeAnEmptyOne(t *testing.T) {
+	var nilG *Graph
+	empty := New(0)
+
+	if nilG.N() != empty.N() || nilG.Edges() != empty.Edges() {
+		t.Errorf("nil reports %d/%d, empty reports %d/%d",
+			nilG.N(), nilG.Edges(), empty.N(), empty.Edges())
+	}
+	if nilG.Has("x") != empty.Has("x") {
+		t.Error("nil and empty disagree about membership")
+	}
+}
