@@ -5,6 +5,54 @@ are the questions the work was answering.
 
 ## Unreleased
 
+### Four product bugs, found by running the tool on itself
+
+The measurement side has had fourteen runs of scrutiny. The commands people
+actually run had not, and pointing `lectio path` at this repository turned up
+three defects in a row.
+
+- **A reading path of ten from one file.** All ten items came from
+  `internal/cli/backtest.go` with the same reason on each. The cause is
+  structural rather than a bug in any signal: four of the seven are computed
+  per *file*, so every declaration in a heavily-worked file inherits four
+  identical contributions and its symbols take the whole list on merit.
+  `Path` now prefers not to draw more than a third of the list from one file —
+  a preference, not a limit, so a repository whose interesting code genuinely
+  is one file still gets a full list. `probe` had the same problem for a
+  sharper reason: a quiz confined to one file measures familiarity with one
+  file.
+
+  This is a selection rule, not a scoring one. No weight moved, and the
+  backtest reads `Result.Items` directly — re-running the declaration target
+  reproduced case set `0d1e81666c55` with lectio at 10.53% and 49.52%,
+  identical to run 11 to the decimal.
+
+- **A flag after the path was silently ignored.** Go's flag package stops
+  parsing at the first non-flag argument, so `lectio path . --top 3` returned
+  ten items with nothing to say why. It is the one CLI mistake here that
+  produced a wrong answer rather than an error.
+
+- **"No data" was printed for signals that ran and found nothing.** The
+  reporting's own comment says "we found no AI markers" and "this code is not
+  AI-written" are different claims, and then printed the same line for both.
+  A signal can now say whether the index carried its input, and the two
+  silences render differently.
+
+- **The read-only graph accessors panicked on a nil receiver.** `index.View`
+  is a plain struct assembled by hand in tests and fixtures, and `rank.Rank`
+  on one with no call graph crashed the process from `HiddenCoupling.Compute`.
+
+### The index summary shows what would otherwise fail silently
+
+- **Import edges are printed, including when they are zero.** They are what
+  decides whether two files changing together is already explained by a
+  dependency, and hidden coupling is defined as the co-changes that
+  explanation does not cover — so zero does not mean "no imports found", it
+  means every co-change in the repository will read as hidden.
+- Warnings for the three ways an index builds successfully and is still
+  missing something a later command depends on: no import edges, a heavy
+  type-check failure, no history at all.
+
 ### The holdout, and the four hypotheses it killed
 
 Everything below this heading came from one corpus, and the run that found
