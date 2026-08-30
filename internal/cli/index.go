@@ -123,11 +123,18 @@ func runIndex(ctx context.Context, env *Env, args []string) error {
 func indexWarnings(res index.Result) []string {
 	var out []string
 
-	if res.Stats.ImportEdges == 0 && res.Stats.Symbols > 0 {
-		out = append(out, "No import edges were recorded. Hidden coupling calls a pair of files "+
-			"\"hidden\" when nothing static explains them changing together, and imports are "+
-			"most of that explanation — with none, every co-change in this repository will "+
-			"look hidden. Usually this means the packages did not type-check.")
+	// Only past one package. Import edges are intra-module by construction —
+	// the adapter records an edge only when both ends are packages it analyzed,
+	// so `fmt` is not one — and a single-package program therefore has zero on
+	// purpose. It is also not at risk: relatedness treats two files in the same
+	// package as related whatever the imports say, so nothing there can read as
+	// hidden in the first place.
+	if res.Stats.ImportEdges == 0 && res.Stats.Symbols > 0 && res.PackagesLoaded > 1 {
+		out = append(out, fmt.Sprintf("No import edges were recorded across %d packages. Hidden "+
+			"coupling calls a pair of files \"hidden\" when nothing static explains them "+
+			"changing together, and imports are most of that explanation — with none, every "+
+			"cross-package co-change in this repository will look hidden. Usually this means "+
+			"the packages did not type-check.", res.PackagesLoaded))
 	}
 	if res.PackagesLoaded > 0 && res.PackagesFailed*5 > res.PackagesLoaded {
 		out = append(out, fmt.Sprintf("%d of %d packages failed to type-check. The call graph "+

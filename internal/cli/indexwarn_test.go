@@ -19,7 +19,7 @@ func healthyIndex() index.Result {
 
 // Zero import edges is the failure this warning exists for, and it is the one
 // that looks most like success: the index builds, the symbol count is right,
-// and every co-change in the repository quietly becomes "hidden".
+// and every cross-package co-change quietly becomes "hidden".
 func TestNoImportEdgesIsWarnedAbout(t *testing.T) {
 	r := healthyIndex()
 	r.Stats.ImportEdges = 0
@@ -29,12 +29,29 @@ func TestNoImportEdgesIsWarnedAbout(t *testing.T) {
 		t.Fatal("an index with no import edges produced no warning")
 	}
 	for _, want := range []string{
-		"No import edges were recorded",
-		"every co-change in this repository will look hidden",
+		"No import edges were recorded across 26 packages",
+		"every cross-package co-change in this repository will look hidden",
 		"did not type-check",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("the warning is missing %q:\n%s", want, got)
+		}
+	}
+}
+
+// A single-package program has zero import edges on purpose: the adapter
+// records an edge only when both ends are packages it analyzed, so importing
+// fmt produces none. It is also not at risk — relatedness treats two files in
+// the same package as related whatever the imports say — so warning here would
+// be a false alarm on the simplest repository there is.
+func TestASinglePackageIsNotWarnedAboutItsImports(t *testing.T) {
+	r := index.Result{
+		PackagesLoaded: 1,
+		Stats:          store.Stats{Symbols: 2, Files: 1, CallEdges: 1, ImportEdges: 0, Commits: 40},
+	}
+	for _, w := range indexWarnings(r) {
+		if strings.Contains(w, "import edges") {
+			t.Errorf("a single-package repository was warned about its import edges:\n%s", w)
 		}
 	}
 }
