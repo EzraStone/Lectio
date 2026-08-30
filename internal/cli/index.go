@@ -86,6 +86,14 @@ func runIndex(ctx context.Context, env *Env, args []string) error {
 	env.out("  %-14s %d", "symbols", res.Stats.Symbols)
 	env.out("  %-14s %d", "files", res.Stats.Files)
 	env.out("  %-14s %d", "call edges", res.Stats.CallEdges)
+	// Import edges are printed unconditionally, including when they are zero.
+	// They are what decides whether two files changing together is already
+	// explained by a dependency, and hidden coupling is defined as the
+	// co-changes that explanation does not cover — so zero here does not mean
+	// "no imports found", it means every co-change in the repository will read
+	// as hidden. Omitting the row when it is zero would hide the one number
+	// that reveals it.
+	env.out("  %-14s %d", "import edges", res.Stats.ImportEdges)
 	if res.Stats.Coverage > 0 {
 		env.out("  %-14s %d", "test links", res.Stats.Coverage)
 	}
@@ -94,9 +102,44 @@ func runIndex(ctx context.Context, env *Env, args []string) error {
 		env.out("  %-14s %d loaded, %d with errors", "packages", res.PackagesLoaded, res.PackagesFailed)
 	}
 	env.out("  %-14s %s", "took", res.Duration.Round(time.Millisecond))
+
+	for _, l := range indexWarnings(res) {
+		env.out("")
+		for _, wrapped := range wrap(l, 68) {
+			env.out("%s", env.warn("  "+wrapped))
+		}
+	}
+
 	env.out("")
 	env.out("%s lectio path %s", env.dim("next:"), root)
 	return nil
+}
+
+// indexWarnings names the ways an index can be built successfully and still be
+// missing something a later command silently depends on.
+//
+// Each of these is a case where the failure surfaces as a plausible-looking
+// answer rather than an error, which is the only kind worth a warning here.
+func indexWarnings(res index.Result) []string {
+	var out []string
+
+	if res.Stats.ImportEdges == 0 && res.Stats.Symbols > 0 {
+		out = append(out, "No import edges were recorded. Hidden coupling calls a pair of files "+
+			"\"hidden\" when nothing static explains them changing together, and imports are "+
+			"most of that explanation — with none, every co-change in this repository will "+
+			"look hidden. Usually this means the packages did not type-check.")
+	}
+	if res.PackagesLoaded > 0 && res.PackagesFailed*5 > res.PackagesLoaded {
+		out = append(out, fmt.Sprintf("%d of %d packages failed to type-check. The call graph "+
+			"loses edges first, so centrality and hidden coupling degrade while the "+
+			"history signals do not — the ranking will look worse than it is rather than "+
+			"failing outright.", res.PackagesFailed, res.PackagesLoaded))
+	}
+	if res.Stats.Commits == 0 {
+		out = append(out, "No commits were read. Four of the seven signals are history-derived "+
+			"and will contribute nothing; the reading path will be a call-graph ranking.")
+	}
+	return out
 }
 
 // pickAdapter honors an explicit choice, otherwise detects.
