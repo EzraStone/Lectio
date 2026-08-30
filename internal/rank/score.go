@@ -99,8 +99,17 @@ type Result struct {
 	// because "we found no AI markers" and "this code is not AI-written" are
 	// different claims.
 	Active []Signal
-	// Silent lists signals with no data.
+	// Silent lists every signal that produced no scores, whatever the reason.
+	// Kept as the union so a caller that only wants "which signals said
+	// nothing" does not have to add two lists together.
 	Silent []Signal
+	// Unavailable is the subset of Silent whose input was missing: the index
+	// carried nothing for them to read. This is a gap in the index.
+	Unavailable []Signal
+	// Empty is the subset of Silent that had its input and found nothing. This
+	// is a finding about the repository — no orphaned code, no machine
+	// authorship — and reporting it as missing data understates what is known.
+	Empty []Signal
 	// TaskMatch describes what a task query resolved to, if anything.
 	TaskMatch string
 }
@@ -131,6 +140,8 @@ func Rank(v *index.View, p Params, w Weights) *Result {
 		}
 		res.Active = append(res.Active, sig)
 	}
+
+	res.Unavailable, res.Empty = classifySilence(v, p, res.Silent)
 
 	// Weights are renormalized over the signals that actually fired. Without
 	// this, a repo with no git history scores every symbol near zero and the

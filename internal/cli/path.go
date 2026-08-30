@@ -143,15 +143,25 @@ func renderPath(env *Env, v *index.View, res *rank.Result, items []rank.Item, ex
 // found no AI-authorship markers in this repo" and "this code was not written
 // by a machine" are different claims, and a tool whose entire premise is
 // trustworthy grading does not get to blur them.
+//
+// Which means the two have to be printed differently, and for a long time they
+// were not: a repository with a year of authorship and nobody gone quiet was
+// told "no data for: orphaning" when the answer was that nothing is orphaned.
 func renderSignalStatus(env *Env, res *rank.Result) {
-	if len(res.Silent) == 0 {
-		return
+	if len(res.Unavailable) > 0 {
+		env.note("%s no data for: %s", env.dim("signals:"), signalNames(res.Unavailable))
 	}
-	names := make([]string, 0, len(res.Silent))
-	for _, s := range res.Silent {
+	if len(res.Empty) > 0 {
+		env.note("%s ran and found nothing: %s", env.dim("signals:"), signalNames(res.Empty))
+	}
+}
+
+func signalNames(sigs []rank.Signal) string {
+	names := make([]string, 0, len(sigs))
+	for _, s := range sigs {
 		names = append(names, string(s))
 	}
-	env.note("%s no data for: %s", env.dim("signals:"), strings.Join(names, ", "))
+	return strings.Join(names, ", ")
 }
 
 func contributions(item rank.Item) string {
