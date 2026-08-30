@@ -94,6 +94,13 @@ func TierLabel(tier int) string {
 }
 
 // Path is the convenience wrapper: score, take the top n, sequence them.
+//
+// SelectSpread rather than Select, because this is the reading path and a
+// reading path drawn from one file is a file. Four of the seven signals are
+// per-file, so a heavily-worked file's declarations occupy the whole top of
+// the list on merit; the cap is what keeps "read these ten things" from
+// meaning "read this one file". Select is unchanged for callers that want the
+// scores in order and nothing else.
 func (r *Result) Path(n int) []Item {
-	return Sequence(r.Select(n))
+	return Sequence(r.SelectSpread(n))
 }
