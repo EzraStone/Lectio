@@ -70,10 +70,16 @@ func runProbe(ctx context.Context, env *Env, args []string) error {
 	// Candidates come from the reading path, so questions are about code the
 	// person has a reason to care about. Probing a random symbol is how a tool
 	// becomes trivia.
+	//
+	// SelectSpread rather than Select, for a sharper version of the reason the
+	// path uses it. Four of the seven signals are per-file, so a plain top-40
+	// on a repository with one busy file draws most of its questions from that
+	// file — and a quiz confined to one file measures familiarity with one
+	// file while reporting it as comprehension of the codebase.
 	p := rank.DefaultParams()
 	ranked := rank.Rank(v, p, rank.DefaultWeights())
-	candidates := make([]core.Symbol, 0, 40)
-	for _, item := range ranked.Select(40) {
+	candidates := make([]core.Symbol, 0, probeCandidates)
+	for _, item := range ranked.SelectSpread(probeCandidates) {
 		candidates = append(candidates, item.Symbol)
 	}
 
@@ -96,6 +102,14 @@ func runProbe(ctx context.Context, env *Env, args []string) error {
 	}
 	return nil
 }
+
+// probeCandidates is how deep into the reading path questions are drawn from.
+//
+// Forty rather than ten, because the scheduler declines anything probed
+// recently and a pool the size of one session would run dry after one. It is
+// still the top of a ranking rather than the whole index: a question about
+// code nobody has a reason to read is trivia, however answerable.
+const probeCandidates = 40
 
 // ask presents one probe and records the outcome.
 func ask(ctx context.Context, env *Env, sched *probe.Scheduler, pctx *probe.Context, pr probe.Probe, reader *bufio.Reader) error {
