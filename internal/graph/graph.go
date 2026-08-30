@@ -59,26 +59,61 @@ func (g *Graph) AddEdge(from, to string) {
 	g.edges++
 }
 
+// The read-only accessors below tolerate a nil receiver, and that is a
+// deliberate choice rather than defensive habit.
+//
+// index.View is a plain struct with exported fields, built by index.Load in
+// production and by hand everywhere else — tests, the backtest's fixtures, any
+// caller assembling a partial view to exercise one signal. A View whose Calls
+// is nil is a perfectly ordinary thing to construct, and rank.Rank walking
+// into it should report an empty graph rather than crash the process. A nil
+// graph has no nodes; saying so is more useful than a stack trace.
+//
+// The mutating methods do not do this. Adding to a nil graph is a programming
+// error with no sensible answer, and silently discarding the edge would be
+// worse than the panic.
+
 // N returns the node count.
-func (g *Graph) N() int { return len(g.ids) }
+func (g *Graph) N() int {
+	if g == nil {
+		return 0
+	}
+	return len(g.ids)
+}
 
 // Edges returns the edge count, including duplicates.
-func (g *Graph) Edges() int { return g.edges }
+func (g *Graph) Edges() int {
+	if g == nil {
+		return 0
+	}
+	return g.edges
+}
 
 // ID returns the string identifier for a node index.
 func (g *Graph) ID(i int) string { return g.ids[i] }
 
 // IDs returns every node identifier, in index order.
-func (g *Graph) IDs() []string { return g.ids }
+func (g *Graph) IDs() []string {
+	if g == nil {
+		return nil
+	}
+	return g.ids
+}
 
 // Index returns the index for id, and whether it exists.
 func (g *Graph) Index(id string) (int, bool) {
+	if g == nil {
+		return 0, false
+	}
 	i, ok := g.index[id]
 	return i, ok
 }
 
 // Has reports whether id is present.
 func (g *Graph) Has(id string) bool {
+	if g == nil {
+		return false
+	}
 	_, ok := g.index[id]
 	return ok
 }
