@@ -126,6 +126,9 @@ The index lives in .lectio/ inside the repo. Nothing leaves your machine.
 // repoArg resolves the positional repository argument, defaulting to the
 // working directory.
 func repoArg(args []string) (string, error) {
+	if err := checkTrailingFlags(args); err != nil {
+		return "", err
+	}
 	dir := "."
 	if len(args) > 0 {
 		dir = args[0]
@@ -142,6 +145,33 @@ func repoArg(args []string) (string, error) {
 		return "", fmt.Errorf("%s is not a directory", dir)
 	}
 	return abs, nil
+}
+
+// checkTrailingFlags rejects flags that appear after a positional argument.
+//
+// Go's flag package stops parsing at the first non-flag argument, so
+// `lectio path . --top 3` parses `.` as the repository and then treats
+// `--top` and `3` as two more positional arguments — silently. The user asked
+// for three items and got ten, with nothing to say why.
+//
+// Permuting the arguments instead would be friendlier and is what most modern
+// CLIs do, but it means knowing which flags take a value in order to keep a
+// flag and its value together, and getting that wrong turns a silent wrong
+// answer into a silently *different* wrong answer. An error costs the user one
+// retry and cannot misparse anything.
+//
+// Everything after a bare "--" is positional by convention and is left alone.
+func checkTrailingFlags(args []string) error {
+	for _, arg := range args {
+		if arg == "--" {
+			return nil
+		}
+		if len(arg) > 1 && arg[0] == '-' {
+			return fmt.Errorf("%s looks like a flag but came after a positional argument, "+
+				"where it would be ignored — put flags first: lectio <command> %s <path>", arg, arg)
+		}
+	}
+	return nil
 }
 
 // newFlagSet returns a flag set that prints to the command's own stderr and
