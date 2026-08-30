@@ -78,6 +78,9 @@ func runBacktest(ctx context.Context, env *Env, args []string) error {
 	}
 
 	repos := fs.Args()
+	if err := checkTrailingFlags(repos); err != nil {
+		return err
+	}
 	if *useCorpus != "" {
 		resolved, err := corpusRepos(ctx, env, *useCorpus, *cacheDir)
 		if err != nil {

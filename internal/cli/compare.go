@@ -35,6 +35,11 @@ func runCompare(_ context.Context, env *Env, args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	// Checked before the count, so a trailing flag says what it is rather than
+	// being reported as a third report file.
+	if err := checkTrailingFlags(fs.Args()); err != nil {
+		return err
+	}
 	if fs.NArg() != 2 {
 		fs.Usage()
 		return fmt.Errorf("compare needs two report files")
