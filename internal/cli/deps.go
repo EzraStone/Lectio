@@ -35,6 +35,12 @@ func runDeps(ctx context.Context, env *Env, args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	// Zero means "follow every hop", which is why this is not the same guard
+	// the other counts get. Negative means nothing at all, and was silently
+	// producing a bounded walk of some unstated depth.
+	if *depth < 0 {
+		return fmt.Errorf("--depth %d is not a number of hops; use 0 to follow all of them", *depth)
+	}
 
 	rest := fs.Args()
 	if len(rest) == 0 {

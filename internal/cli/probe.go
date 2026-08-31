@@ -33,6 +33,12 @@ func runProbe(ctx context.Context, env *Env, args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	// Asking for no probes exited silently — no output, no error, exit zero.
+	// The flags that stop early say so and stop; a count of zero should not be
+	// a third, quieter way to do nothing.
+	if *count < 1 && !*health && !*forget {
+		return fmt.Errorf("-n %d asks for no probes; it has to be at least 1", *count)
+	}
 
 	root, err := repoArg(fs.Args())
 	if err != nil {
