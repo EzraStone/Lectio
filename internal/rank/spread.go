@@ -25,16 +25,27 @@ package rank
 // ground compared to a score.
 const MaxPerFileShare = 3
 
+// MinPerFile is the floor under that share.
+//
+// Two, not one. At `--top 3` a third of the list rounds to one, which forbids
+// any two items from sharing a file — and "these two functions here, plus this
+// one over there" is a perfectly good three-item path that the cap would
+// refuse. The floor also keeps the rule consistent with its own justification:
+// the loosest defensible constraint is the right one, because the failure being
+// prevented is ten of ten from one file and anything well below ten prevents
+// it.
+const MinPerFile = 2
+
 // maxPerFile is how many items one file may contribute to a path of n.
 func maxPerFile(n int) int {
 	if n <= 0 {
 		return 0
 	}
-	cap := (n + MaxPerFileShare - 1) / MaxPerFileShare
-	if cap < 1 {
-		return 1
+	share := (n + MaxPerFileShare - 1) / MaxPerFileShare
+	if share < MinPerFile {
+		return MinPerFile
 	}
-	return cap
+	return share
 }
 
 // SelectSpread returns the n highest-scoring items, preferring not to take

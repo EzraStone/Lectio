@@ -140,7 +140,11 @@ func TestSelectSpreadIsDeterministic(t *testing.T) {
 
 func TestMaxPerFileScalesWithTheList(t *testing.T) {
 	for _, tc := range []struct{ n, want int }{
-		{0, 0}, {1, 1}, {2, 1}, {3, 1}, {4, 2}, {5, 2}, {6, 2},
+		{0, 0},
+		// Under the floor: a third of a short list rounds to one, which would
+		// forbid any two items from sharing a file.
+		{1, 2}, {2, 2}, {3, 2}, {4, 2}, {5, 2}, {6, 2},
+		// Past it, the share governs.
 		{10, 4}, {20, 7}, {30, 10},
 	} {
 		if got := maxPerFile(tc.n); got != tc.want {
@@ -220,5 +224,38 @@ func TestSelectSpreadDegradesTowardTheRankingWhenTheCapCannotBeMet(t *testing.T)
 			t.Errorf("the fallback took %s at %.4f rather than the highest skipped",
 				it.Symbol.ID, it.Score)
 		}
+	}
+}
+
+// The case that prompted the floor. At three items a third rounds to one, and
+// "these two functions here, plus this one over there" is a perfectly good
+// three-item path that a one-per-file cap would refuse.
+func TestAShortPathMayKeepACoherentPair(t *testing.T) {
+	r := resultOf(
+		oneFile("core.go", 10, 0.95),
+		oneFile("edge.go", 10, 0.60),
+	)
+	got := r.SelectSpread(3)
+	if len(got) != 3 {
+		t.Fatalf("returned %d items, want 3", len(got))
+	}
+	if n := filesOf(got)["core.go"]; n != 2 {
+		t.Errorf("core.go contributed %d of 3, want the 2 the floor allows", n)
+	}
+	if Files(got) != 2 {
+		t.Errorf("a three-item path spans %d files, want 2", Files(got))
+	}
+}
+
+// And the floor must not undo the fix: ten items still cannot come from one
+// file.
+func TestTheFloorDoesNotReopenTheOriginalBug(t *testing.T) {
+	r := resultOf(
+		oneFile("hot.go", 40, 0.90),
+		oneFile("other.go", 20, 0.60),
+		oneFile("third.go", 20, 0.50),
+	)
+	if n := filesOf(r.SelectSpread(10))["hot.go"]; n > 4 {
+		t.Errorf("hot.go took %d of 10", n)
 	}
 }
