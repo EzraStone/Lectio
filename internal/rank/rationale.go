@@ -27,6 +27,45 @@ type Facts struct {
 	TopPair       map[string]Pair
 
 	Distance map[core.SymbolID]int
+
+	// Window describes the history window the counts above were taken over,
+	// as a phrase a sentence can end with.
+	//
+	// Carried rather than assumed, because the churn rationale used to say
+	// "this year" whatever --months was set to. A tool whose premise is that
+	// every claim is auditable does not get to describe a three-month count as
+	// a year's.
+	Window string
+}
+
+// effectiveWindow is the window the counts are actually taken over.
+//
+// A non-positive one falls back to a year rather than counting nothing, and
+// the phrase has to be derived from the same value — otherwise a run describes
+// "in the window" while counting over twelve months, which is the drift this
+// whole field exists to prevent.
+func effectiveWindow(d time.Duration) time.Duration {
+	if d <= 0 {
+		return 365 * 24 * time.Hour
+	}
+	return d
+}
+
+// windowPhrase renders a history window for the end of a sentence.
+func windowPhrase(d time.Duration) string {
+	months := int((d + 15*24*time.Hour) / (30 * 24 * time.Hour))
+	switch {
+	case d <= 0:
+		return "in the window"
+	case months >= 12 && months < 18:
+		return "this year"
+	case months >= 18:
+		return fmt.Sprintf("in the last %d months", months)
+	case months <= 1:
+		return "in the last month"
+	default:
+		return fmt.Sprintf("in the last %d months", months)
+	}
 }
 
 // Gather computes the evidence behind a ranking, once.
@@ -39,6 +78,7 @@ func Gather(v *index.View, p Params) *Facts {
 		AIShare:          make(map[string]float64),
 		TopPair:          make(map[string]Pair),
 		Distance:         make(map[core.SymbolID]int),
+		Window:           windowPhrase(effectiveWindow(p.ChurnWindow)),
 	}
 
 	for i := 0; i < v.Calls.N(); i++ {
@@ -55,11 +95,7 @@ func Gather(v *index.View, p Params) *Facts {
 		}
 	}
 
-	window := p.ChurnWindow
-	if window <= 0 {
-		window = 365 * 24 * time.Hour
-	}
-	cutoff := p.Now.Add(-window)
+	cutoff := p.Now.Add(-effectiveWindow(p.ChurnWindow))
 
 	aiLines := make(map[string]int)
 	totalLines := make(map[string]int)
@@ -146,7 +182,8 @@ func (f *Facts) Explain(item Item, taskLabel string) string {
 
 	case SignalChurn:
 		if n := f.Commits[item.Symbol.File]; n > 0 {
-			return fmt.Sprintf("its file changed in %s this year", plural(n, "commit"))
+			return fmt.Sprintf("its file changed in %s %s",
+				plural(n, "commit"), orDefault(f.Window, "this year"))
 		}
 
 	case SignalFixDensity:
