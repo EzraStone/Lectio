@@ -10,6 +10,14 @@ Three different signals lead those reasons: hidden coupling, orphaning,
 centrality. A list where every row said the same thing would mean six of the
 seven signals were decoration.
 
+Which is what running it on *this* repository produced: ten symbols from one
+file, with "its file changed in 36 commits this year" on all ten. Four of the
+seven signals are computed per file, so every declaration in a heavily-worked
+file inherits four identical contributions and its symbols take the whole list
+on merit. A path prefers not to draw more than a third of its items from one
+file now — a preference, not a limit, so a repository whose interesting code
+genuinely is one file still gets a full list.
+
 > **Status: Gate A failed, eleven ways, across two corpora.** Across 30 pinned
 > repositories, lectio lost to *largest files* — and once file size is held
 > constant the two are the same strategy. Hidden coupling, the differentiator,

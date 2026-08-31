@@ -365,6 +365,49 @@ actually recommended — not "the biggest symbols". Choosing that afterwards is
 how a gate gets argued past. `LargestSymbols` exists as a *control* for exactly
 that reason, and it is what beat the ranking two to one.
 
+### Selection is not scoring
+
+`Rank` produces `Result.Items`, every readable symbol in score order. Three
+things read it, and they are not the same question.
+
+- **The backtest** reads `Items` directly. It is measuring the ranking, so
+  anything applied on top of the ranking would be measuring something else.
+- **`Select(n)`** takes the top n, dropping zero scores. A symbol no signal had
+  anything to say about is not a recommendation, and padding a top-ten list
+  with those would make it one.
+- **`SelectSpread(n)`**, which `Path` uses, prefers not to draw more than a
+  third of the list from one file.
+
+The third exists because a reading path of ten items from one file is a file.
+Four of the seven signals are file-grained, so every declaration in a
+heavily-worked file inherits four identical contributions — the ranking behaves
+exactly as specified and produces something nobody can read. Run against this
+repository it returned ten symbols from `internal/cli/backtest.go` with the
+same reason on each.
+
+The cap is a preference rather than a limit: if honouring it would return fewer
+than n, the skipped items come back in score order, so a repository whose
+interesting code genuinely is one file still gets a full list. It never pads.
+And it is a *selection* rule — no weight moves, and re-running the declaration
+target after it landed reproduced case set `0d1e81666c55` with lectio at 10.53%
+and 49.52%, identical to the run before it.
+
+### Two kinds of silence
+
+A signal that produced no scores is reported rather than counted as zero,
+because "we found no AI markers" and "this code is not AI-written" are
+different claims. That distinction only works if the two are *printed*
+differently, and for a long time they were not: a repository with a year of
+authorship and nobody gone quiet was told "no data for: orphaning" when the
+answer is that nothing is orphaned.
+
+`Available` is the optional interface a signal implements to say whether the
+index carried what it reads. `Result` splits its silent signals into
+`Unavailable` (a gap in the index) and `Empty` (a finding about the
+repository). A signal that cannot answer is assumed to have had its input: an
+unexplained silence reported as a finding overstates the evidence by less than
+a real finding reported as a gap understates it.
+
 ### Size-matched pairs
 
 Stratification narrows the size range inside a band; it does not eliminate it.
