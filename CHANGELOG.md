@@ -5,7 +5,7 @@ are the questions the work was answering.
 
 ## Unreleased
 
-### Four product bugs, found by running the tool on itself
+### Seven product bugs, found by running the tool on itself
 
 The measurement side has had fourteen runs of scrutiny. The commands people
 actually run had not, and pointing `lectio path` at this repository turned up
@@ -27,6 +27,11 @@ three defects in a row.
   reproduced case set `0d1e81666c55` with lectio at 10.53% and 49.52%,
   identical to run 11 to the decimal.
 
+  The cap's floor was then raised from one to two per file, because at
+  `--top 3` a third of the list rounds to one and forbids any two items from
+  sharing a file — and "these two functions here, plus this one over there" is
+  a perfectly good three-item path.
+
 - **A flag after the path was silently ignored.** Go's flag package stops
   parsing at the first non-flag argument, so `lectio path . --top 3` returned
   ten items with nothing to say why. It is the one CLI mistake here that
@@ -41,6 +46,25 @@ three defects in a row.
 - **The read-only graph accessors panicked on a nil receiver.** `index.View`
   is a plain struct assembled by hand in tests and fixtures, and `rank.Rank`
   on one with no call graph crashed the process from `HiddenCoupling.Compute`.
+  `Reverse` and `Subgraph` had the same problem, reached from `rank.Gather`.
+
+- **The churn rationale said "this year" whatever `--months` was set to.**
+  `lectio path --months 3` described a three-month count as a year's, in a tool
+  whose stated premise is that every claim it makes is auditable. `Facts` now
+  carries the phrase, derived from the same effective window the counts are
+  taken over so the two cannot drift.
+
+- **Non-positive counts were accepted and did something.** `--top 0` reported
+  "Nothing scored above zero. That usually means the index is thin", sending
+  someone to re-index a repository that was fine; `probe -n 0` exited silently
+  with no output and no error; `deps --depth -1` walked a bounded depth it
+  never stated. Zero depth legitimately means "follow every hop", so `deps`
+  gets the guard its own semantics call for rather than the one the others get.
+
+- **The `path --json` output still conflated the two silences** the text output
+  had learned to separate, and said nothing about how many files the path
+  spanned. Both are there now; `silent_signals` stays as the union so a
+  consumer written against the older shape reads the same thing.
 
 ### The index summary shows what would otherwise fail silently
 
