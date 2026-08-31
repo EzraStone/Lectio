@@ -146,7 +146,12 @@ func (g *Graph) Dedup() *Graph {
 
 // Reverse returns a new graph with every edge flipped. The reversed call graph
 // is the blast-radius graph: successors become "who breaks if I change this".
+// Reverse is read-only in the same sense as the accessors above — it produces
+// a new graph — so a nil receiver gives an empty one rather than a panic.
 func (g *Graph) Reverse() *Graph {
+	if g == nil {
+		return New(0)
+	}
 	r := &Graph{
 		ids:   append([]string(nil), g.ids...),
 		index: make(map[string]int, len(g.ids)),
@@ -165,7 +170,11 @@ func (g *Graph) Reverse() *Graph {
 }
 
 // Subgraph returns the induced subgraph over keep, with fresh indices.
+// Subgraph, likewise, reads and builds.
 func (g *Graph) Subgraph(keep func(id string) bool) *Graph {
+	if g == nil {
+		return New(0)
+	}
 	sub := New(g.N())
 	for i, id := range g.ids {
 		if !keep(id) {
