@@ -200,13 +200,24 @@ type jsonItem struct {
 }
 
 type jsonOutput struct {
-	Repo    string     `json:"repo"`
-	Head    string     `json:"head,omitempty"`
-	Task    string     `json:"task,omitempty"`
-	Active  []string   `json:"active_signals"`
-	Silent  []string   `json:"silent_signals,omitempty"`
-	Symbols int        `json:"symbols_indexed"`
-	Items   []jsonItem `json:"path"`
+	Repo   string   `json:"repo"`
+	Head   string   `json:"head,omitempty"`
+	Task   string   `json:"task,omitempty"`
+	Active []string `json:"active_signals"`
+	// Silent is the union, kept so a consumer written against the older shape
+	// still reads the same thing.
+	Silent []string `json:"silent_signals,omitempty"`
+	// Unavailable and Empty split it the way the text output does. A machine
+	// reading only silent_signals gets the conflation the human output no
+	// longer has, which is the wrong half of the interface to leave behind.
+	Unavailable []string `json:"unavailable_signals,omitempty"`
+	Empty       []string `json:"empty_signals,omitempty"`
+	Symbols     int      `json:"symbols_indexed"`
+	// Files is how many distinct files the path spans. A path of ten across
+	// one file and one across seven are different objects, and nothing else in
+	// this output tells them apart.
+	Files int        `json:"files_spanned"`
+	Items []jsonItem `json:"path"`
 }
 
 func emitJSON(env *Env, v *index.View, res *rank.Result, items []rank.Item) error {
@@ -223,6 +234,13 @@ func emitJSON(env *Env, v *index.View, res *rank.Result, items []rank.Item) erro
 	for _, s := range res.Silent {
 		out.Silent = append(out.Silent, string(s))
 	}
+	for _, s := range res.Unavailable {
+		out.Unavailable = append(out.Unavailable, string(s))
+	}
+	for _, s := range res.Empty {
+		out.Empty = append(out.Empty, string(s))
+	}
+	out.Files = rank.Files(items)
 	for _, item := range items {
 		ji := jsonItem{
 			Symbol:    string(item.Symbol.ID),
