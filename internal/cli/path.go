@@ -35,6 +35,18 @@ func runPath(ctx context.Context, env *Env, args []string) error {
 		return err
 	}
 
+	// A zero or negative count is not a request the tool can honour, and until
+	// now it produced "Nothing scored above zero. That usually means the index
+	// is thin" — sending someone to re-index a repository that is fine.
+	if *top < 1 {
+		return fmt.Errorf("--top %d asks for no items; it has to be at least 1", *top)
+	}
+	// A non-positive window silently became a zero-length one, over which every
+	// history signal counts nothing while the rationale still described a year.
+	if *months < 1 {
+		return fmt.Errorf("--months %d is not a history window; it has to be at least 1", *months)
+	}
+
 	root, err := repoArg(fs.Args())
 	if err != nil {
 		return err
